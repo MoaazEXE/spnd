@@ -1,0 +1,63 @@
+import { describe, it, expect } from 'vitest'
+import { calculateTimeCost } from './timeCost'
+
+const base = {
+  monthlyIncomeCents: 500_000, // RM 5,000/month
+  workingHoursPerWeek: 40,
+  mode: 'SIMPLE' as const,
+}
+
+describe('calculateTimeCost — SIMPLE mode', () => {
+  it('returns a positive number of hours for a non-zero amount', () => {
+    const result = calculateTimeCost({ ...base, amountCents: 10_000 })
+    expect(result.hours).toBeGreaterThan(0)
+  })
+
+  it('returns zero hours when income is zero', () => {
+    const result = calculateTimeCost({ ...base, monthlyIncomeCents: 0, amountCents: 10_000 })
+    expect(result.hours).toBe(0)
+    expect(result.formatted).toBe('0 min')
+  })
+
+  it('is proportional: doubling the price doubles the hours', () => {
+    const r1 = calculateTimeCost({ ...base, amountCents: 10_000 })
+    const r2 = calculateTimeCost({ ...base, amountCents: 20_000 })
+    expect(r2.hours).toBeCloseTo(r1.hours * 2, 5)
+  })
+
+  it('formats as minutes when hours < 1', () => {
+    // Very small amount relative to income
+    const result = calculateTimeCost({ ...base, amountCents: 100 })
+    expect(result.formatted).toMatch(/min/)
+  })
+
+  it('formats with hours when hours >= 1', () => {
+    // Large amount: RM 500 against RM 5000/month, 40h/week → ~4h
+    const result = calculateTimeCost({ ...base, amountCents: 50_000 })
+    expect(result.formatted).toMatch(/h/)
+  })
+})
+
+describe('calculateTimeCost — TRUE_HOURLY mode', () => {
+  it('costs more hours than SIMPLE when commute is non-zero', () => {
+    const simple     = calculateTimeCost({ ...base, amountCents: 10_000, mode: 'SIMPLE' })
+    const trueHourly = calculateTimeCost({
+      ...base,
+      amountCents: 10_000,
+      mode: 'TRUE_HOURLY',
+      commuteHours: 1, // 1h/day commute
+    })
+    expect(trueHourly.hours).toBeGreaterThan(simple.hours)
+  })
+
+  it('costs more hours than SIMPLE when work costs reduce effective income', () => {
+    const simple     = calculateTimeCost({ ...base, amountCents: 10_000, mode: 'SIMPLE' })
+    const trueHourly = calculateTimeCost({
+      ...base,
+      amountCents: 10_000,
+      mode: 'TRUE_HOURLY',
+      workCostsCents: 50_000, // RM 500/month work costs
+    })
+    expect(trueHourly.hours).toBeGreaterThan(simple.hours)
+  })
+})

@@ -1,0 +1,126 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ItemStatus {
+  COOLING
+  BOUGHT
+  SKIPPED
+}
+
+enum ExpenseType {
+  INSTANT
+  PROPOSAL
+}
+
+enum ExpenseStatus {
+  COOLING
+  COMMITTED
+  CANCELLED
+}
+
+enum Reaction {
+  IN
+  SKIP
+}
+
+enum TimeCostMode {
+  SIMPLE
+  TRUE_HOURLY
+}
+
+model User {
+  id                   String       @id @default(cuid())
+  name                 String
+  email                String       @unique
+  monthlyIncomeCents   Int?
+  workingHoursPerWeek  Float?
+  commuteHours         Float?
+  workCostsCents       Int?
+  timeCostMode         TimeCostMode @default(SIMPLE)
+  defaultCoolingPeriod String       @default("1d")
+  createdAt            DateTime     @default(now())
+
+  items         Item[]
+  groupsCreated Group[]
+  groupMembers  GroupMember[]
+  expensesPaid  Expense[]
+  expenseShares ExpenseShare[]
+}
+
+model Item {
+  id           String     @id @default(cuid())
+  userId       String
+  groupId      String?
+  title        String
+  amountCents  Int
+  note         String?
+  photoUrl     String?
+  linkUrl      String?
+  status       ItemStatus @default(COOLING)
+  coolingUntil DateTime
+  createdAt    DateTime   @default(now())
+  resolvedAt   DateTime?
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group Group? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+}
+
+model Group {
+  id        String   @id @default(cuid())
+  name      String
+  createdBy String
+  createdAt DateTime @default(now())
+
+  creator  User          @relation(fields: [createdBy], references: [id])
+  members  GroupMember[]
+  items    Item[]
+  expenses Expense[]
+}
+
+model GroupMember {
+  id       String   @id @default(cuid())
+  groupId  String
+  userId   String
+  joinedAt DateTime @default(now())
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+}
+
+model Expense {
+  id           String        @id @default(cuid())
+  groupId      String
+  payerId      String
+  amountCents  Int
+  description  String
+  type         ExpenseType
+  status       ExpenseStatus @default(COMMITTED)
+  coolingUntil DateTime?
+  createdAt    DateTime      @default(now())
+
+  group  Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  payer  User           @relation(fields: [payerId], references: [id])
+  shares ExpenseShare[]
+}
+
+model ExpenseShare {
+  id         String    @id @default(cuid())
+  expenseId  String
+  userId     String
+  shareCents Int
+  reaction   Reaction?
+
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([expenseId, userId])
+}

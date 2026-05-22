@@ -1,36 +1,79 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Spnd — The money you didn't spend
 
-## Getting Started
+A personal finance app that **intervenes before the money leaves**. Log temptations, let them cool, and celebrate what you didn't spend — solo or with a group.
 
-First, run the development server:
+Built for the Shortcut Asia Internship Challenge 2026 (23 May – 2 June).
+
+## Tech stack
+
+| Layer | Choice |
+|-------|--------|
+| Framework | Next.js 16 (App Router) + TypeScript |
+| Database | Supabase (Postgres + Auth + Realtime) |
+| ORM | Prisma 7 |
+| UI | Tailwind CSS v4 + shadcn/ui |
+| Charts | Recharts |
+| Tests | Vitest |
+| Hosting | Vercel |
+
+## Local setup
+
+### 1. Install dependencies
+
+```bash
+npm install
+```
+
+### 2. Configure environment variables
+
+```bash
+cp .env.example .env
+```
+
+Fill in `.env` with your Supabase project credentials (see `.env.example` for all required keys).
+
+### 3. Push the database schema
+
+```bash
+npx prisma migrate dev --name init
+```
+
+### 4. Start the dev server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 5. Run unit tests
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm test
+```
 
-## Learn More
+Tests cover the three pure core modules: `cooling/`, `debt/`, and `timecost/`.
 
-To learn more about Next.js, take a look at the following resources:
+## Architecture
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+src/
+├── app/          # Next.js App Router (thin route handlers + page shells)
+│   ├── (auth)/   # login / signup
+│   └── (app)/    # authenticated shell: dashboard, cooling, groups, settings
+├── core/         # ★ Pure domain logic — framework-free, fully tested
+│   ├── cooling/  # State machine: status computed from timestamps, never client timers
+│   ├── debt/     # Debt simplification: minimum cash-flow algorithm
+│   ├── timecost/ # Time-cost engine: price → hours of your life (simple + true-hourly)
+│   └── savings/  # Derive "saved by waiting" totals (never stored as a column)
+├── data/         # Prisma repository layer
+├── lib/          # Supabase clients, Prisma singleton
+└── types/        # Shared domain types
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Key design decisions
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Money as integer cents** everywhere — no floating-point arithmetic.
+- **Cooling is computed, not counted** — `coolingUntil > now()` on every read; closing a tab can't break the state.
+- **Savings totals are derived, never stored** — sum of SKIPPED items on read keeps them always-correct.
+- **Core logic is framework-free** — `src/core/` has zero Next.js or Prisma imports, making it trivially testable and portable to a future mobile API.
