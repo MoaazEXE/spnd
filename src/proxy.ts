@@ -1,6 +1,11 @@
 import { createServerClient } from '@supabase/ssr'
 import { type NextRequest, NextResponse } from 'next/server'
 
+// Routes that require a valid session
+const PROTECTED = ['/dashboard', '/cooling', '/groups', '/settings']
+// Routes that should redirect to /dashboard when already authenticated
+const AUTH_ONLY = ['/login', '/signup']
+
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
@@ -23,8 +28,22 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  // Refresh the session — keeps the auth token alive on every request
-  await supabase.auth.getUser()
+  // getUser() verifies the token with Supabase — do not swap for getSession()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  const { pathname } = request.nextUrl
+
+  if (!user && PROTECTED.some(p => pathname.startsWith(p))) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/login'
+    return NextResponse.redirect(url)
+  }
+
+  if (user && AUTH_ONLY.some(p => pathname.startsWith(p))) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/dashboard'
+    return NextResponse.redirect(url)
+  }
 
   return supabaseResponse
 }

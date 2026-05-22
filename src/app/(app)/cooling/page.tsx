@@ -1,4 +1,6 @@
-// Cooling Queue — log temptation + items list built in Sprint 1 (Day 3)
+import { redirect } from 'next/navigation'
+
+// Cooling queue lives on the dashboard in Sprint 1
 export default function CoolingPage() {
-  return <p className="text-muted-foreground">Cooling Queue — coming in Sprint 1</p>
+  redirect('/dashboard')
 }

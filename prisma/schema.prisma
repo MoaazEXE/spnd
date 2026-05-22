@@ -36,7 +36,7 @@ enum TimeCostMode {
 }
 
 model User {
-  id                   String       @id @default(cuid())
+  id                   String       @id  // set to Supabase auth UUID on create — enables RLS
   name                 String
   email                String       @unique
   monthlyIncomeCents   Int?
