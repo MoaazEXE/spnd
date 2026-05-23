@@ -22,6 +22,9 @@ BEGIN
   )
   ON CONFLICT (id) DO NOTHING;
   RETURN new;
+EXCEPTION WHEN unique_violation THEN
+  -- Same email via different auth provider — row already exists, safe to ignore
+  RETURN new;
 END;
 $$;
 
