@@ -8,8 +8,10 @@ import { ResolveSheet } from './resolve-sheet'
 import { CelebrationOverlay } from './celebration-overlay'
 import { HeroSavings } from './hero-savings'
 import { RecentWins } from './recent-wins'
+import { SavingsChart } from './savings-chart'
 import { calculateTimeCost } from '@/core/timecost/timeCost'
 import type { TimeCostInput } from '@/types'
+import type { SavingsDataPoint } from '@/core/savings/savings'
 
 interface CoolingItem {
   id: string
@@ -32,6 +34,7 @@ interface Props {
   skippedItems: SkippedItem[]
   defaultCoolingPeriod: string
   timeCostContext: Omit<TimeCostInput, 'amountCents'> | null
+  savingsChartData: SavingsDataPoint[]
 }
 
 interface Celebration {
@@ -45,6 +48,7 @@ export function DashboardShell({
   skippedItems,
   defaultCoolingPeriod,
   timeCostContext,
+  savingsChartData,
 }: Props) {
   const [logOpen, setLogOpen] = useState(false)
   const [resolveItemId, setResolveItemId] = useState<string | null>(null)
@@ -72,6 +76,9 @@ export function DashboardShell({
       <div className="pb-32">
         {/* Hero */}
         <HeroSavings savedCents={savedCents} timeCostFormatted={heroTimeCost} />
+
+        {/* Savings chart */}
+        <SavingsChart data={savingsChartData} />
 
         {/* Cooling Now */}
         <section className="px-5 mb-6">
