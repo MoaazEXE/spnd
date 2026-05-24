@@ -1,4 +1,6 @@
-# Spnd — The money you didn't spend
+this needs to be updated...
+
+# Settle — The money you didn't spend
 
 A personal finance app that **intervenes before the money leaves**. Log temptations, let them cool, and celebrate what you didn't spend — solo or with a group.
 
@@ -6,15 +8,15 @@ Built for the Shortcut Asia Internship Challenge 2026 (23 May – 2 June).
 
 ## Tech stack
 
-| Layer | Choice |
-|-------|--------|
-| Framework | Next.js 16 (App Router) + TypeScript |
-| Database | Supabase (Postgres + Auth + Realtime) |
-| ORM | Prisma 7 |
-| UI | Tailwind CSS v4 + shadcn/ui |
-| Charts | Recharts |
-| Tests | Vitest |
-| Hosting | Vercel |
+| Layer     | Choice                                |
+| --------- | ------------------------------------- |
+| Framework | Next.js 16 (App Router) + TypeScript  |
+| Database  | Supabase (Postgres + Auth + Realtime) |
+| ORM       | Prisma 7                              |
+| UI        | Tailwind CSS v4 + shadcn/ui           |
+| Charts    | Recharts                              |
+| Tests     | Vitest                                |
+| Hosting   | Vercel                                |
 
 ## Local setup
 
