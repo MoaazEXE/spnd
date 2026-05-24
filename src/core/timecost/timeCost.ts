@@ -29,6 +29,12 @@ function formatHours(hours: number): string {
     const minutes = Math.round(hours * 60)
     return `${minutes} min`
   }
+  if (hours >= 24) {
+    const days = hours / 24
+    const daysStr = days.toFixed(1).replace(/\.0$/, '')
+    const label = daysStr === '1' ? 'day' : 'days'
+    return `${daysStr} ${label} (${Math.round(hours)}h)`
+  }
   const h = Math.floor(hours)
   const m = Math.round((hours - h) * 60)
   return m === 0 ? `${h}h` : `${h}h ${m}min`

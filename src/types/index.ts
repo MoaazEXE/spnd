@@ -6,7 +6,7 @@ export type ExpenseType = 'INSTANT' | 'PROPOSAL'
 export type ExpenseStatus = 'COOLING' | 'COMMITTED' | 'CANCELLED'
 export type Reaction = 'IN' | 'SKIP'
 export type TimeCostMode = 'SIMPLE' | 'TRUE_HOURLY'
-export type CoolingUnit = 'HOURS' | 'DAYS' | 'WEEKS'
+export type CoolingUnit = 'MINUTES' | 'HOURS' | 'DAYS' | 'WEEKS'
 
 export interface CoolingPeriod {
   value: number

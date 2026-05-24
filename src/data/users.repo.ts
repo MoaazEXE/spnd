@@ -1,10 +1,13 @@
+import { cache } from 'react'
 import { prisma } from '@/lib/prisma'
 import type { TimeCostMode } from '@/types'
 
+const findByIdCached = cache(async (id: string) =>
+  prisma.user.findUnique({ where: { id } }),
+)
+
 export const usersRepo = {
-  async findById(id: string) {
-    return prisma.user.findUnique({ where: { id } })
-  },
+  findById: findByIdCached,
 
   async updateIncome(
     id: string,

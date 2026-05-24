@@ -4,10 +4,9 @@ import { useActionState } from 'react'
 import Link from 'next/link'
 import { signUp } from '@/app/actions/auth'
 import { signInWithGoogle } from '@/app/actions/oauth'
-import { Button } from '@/components/ui/button'
 
 const inputClass =
-  'w-full h-[52px] px-4 rounded-[14px] bg-background border border-border text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all'
+  'w-full h-[52px] px-4 rounded-[14px] bg-card border border-[rgba(31,42,46,0.12)] text-[15px] font-medium text-foreground placeholder:text-[var(--text-subtle)] focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all'
 
 function GoogleIcon() {
   return (
@@ -25,15 +24,17 @@ export default function SignupPage() {
 
   if (state === 'check-email') {
     return (
-      <div className="w-full max-w-sm text-center space-y-4">
-        <div className="inline-flex items-center justify-center w-10 h-10 rounded-[10px] bg-primary mb-3">
-          <span className="text-primary-foreground font-bold text-lg">S</span>
+      <div className="w-full max-w-sm text-center">
+        <div className="w-16 h-16 rounded-full bg-[var(--primary-tint)] flex items-center justify-center mx-auto mb-5">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M5 12l4.5 4.5L19 7" stroke="#2D5F5B" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
         </div>
-        <h1 className="text-2xl font-bold tracking-tight">Check your email</h1>
-        <p className="text-sm text-muted-foreground leading-relaxed">
+        <h1 className="text-[26px] font-bold tracking-[-0.6px] mb-3">Check your email</h1>
+        <p className="text-[15px] text-[var(--text-muted)] leading-relaxed mb-6">
           We sent a confirmation link to your inbox. Click it to activate your account — then come back and sign in.
         </p>
-        <Link href="/login" className="text-primary text-sm font-medium hover:underline block">
+        <Link href="/login" className="text-primary text-[15px] font-semibold hover:underline">
           Back to sign in
         </Link>
       </div>
@@ -41,69 +42,68 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="w-full max-w-sm space-y-6">
-      <div className="text-center space-y-1">
-        <div className="inline-flex items-center justify-center w-10 h-10 rounded-[10px] bg-primary mb-3">
-          <span className="text-primary-foreground font-bold text-lg">S</span>
+    <div className="w-full max-w-sm">
+      {/* Logo */}
+      <div className="flex items-center gap-2.5 mb-8">
+        <div className="w-9 h-9 rounded-[12px] bg-primary flex items-center justify-center">
+          <span className="text-primary-foreground font-bold text-[15px]">S</span>
         </div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">Create your account</h1>
-        <p className="text-sm text-muted-foreground">Start pausing before you spend.</p>
+        <span className="text-[22px] font-bold tracking-[-0.5px] text-foreground">Settle</span>
       </div>
 
-      <div className="bg-card rounded-[20px] p-6 shadow-[0_1px_2px_rgba(31,42,46,0.04),0_4px_16px_rgba(31,42,46,0.04)] space-y-4">
-        {/* Google OAuth */}
-        <form action={signInWithGoogle}>
-          <button
-            type="submit"
-            className="w-full h-12 flex items-center justify-center gap-3 rounded-[14px] border border-border bg-background text-sm font-medium text-foreground hover:bg-muted transition-colors"
-          >
-            <GoogleIcon />
-            Continue with Google
-          </button>
-        </form>
-
-        <div className="flex items-center gap-3">
-          <div className="flex-1 h-px bg-border" />
-          <span className="text-[11px] font-medium text-muted-foreground">or</span>
-          <div className="flex-1 h-px bg-border" />
-        </div>
-
-        {/* Email / password */}
-        <form action={action} className="space-y-4">
-          <div className="space-y-1.5">
-            <label htmlFor="name" className="text-[11px] font-semibold uppercase tracking-[0.4px] text-muted-foreground">
-              Name
-            </label>
-            <input id="name" name="name" type="text" required autoComplete="name" placeholder="Your name" className={inputClass} />
-          </div>
-
-          <div className="space-y-1.5">
-            <label htmlFor="email" className="text-[11px] font-semibold uppercase tracking-[0.4px] text-muted-foreground">
-              Email
-            </label>
-            <input id="email" name="email" type="email" required autoComplete="email" placeholder="you@example.com" className={inputClass} />
-          </div>
-
-          <div className="space-y-1.5">
-            <label htmlFor="password" className="text-[11px] font-semibold uppercase tracking-[0.4px] text-muted-foreground">
-              Password
-            </label>
-            <input id="password" name="password" type="password" required autoComplete="new-password" placeholder="At least 8 characters" minLength={8} className={inputClass} />
-          </div>
-
-          {state && state !== 'check-email' && (
-            <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-[10px]">{state}</p>
-          )}
-
-          <Button type="submit" disabled={isPending} className="w-full h-12 rounded-[14px] text-sm font-semibold">
-            {isPending ? 'Creating account…' : 'Create account'}
-          </Button>
-        </form>
+      {/* Hero copy */}
+      <div className="mb-6">
+        <p className="text-[13px] font-semibold text-primary uppercase tracking-[1.2px] mb-3">
+          The money you didn&apos;t spend
+        </p>
+        <h1 className="text-[36px] font-bold leading-[1.05] tracking-[-1.4px] text-foreground mb-2">
+          Start pausing<br />before you buy.
+        </h1>
+        <p className="text-[16px] text-[var(--text-muted)] leading-relaxed">
+          Log temptations, wait them out, and watch what you save.
+        </p>
       </div>
 
-      <p className="text-center text-sm text-muted-foreground">
+      {/* Google — primary CTA */}
+      <form action={signInWithGoogle} className="mb-3">
+        <button
+          type="submit"
+          className="w-full h-[56px] flex items-center justify-center gap-3 rounded-[16px] bg-primary text-primary-foreground text-[16px] font-semibold transition-all active:scale-[0.97] hover:bg-[var(--primary-deep)]"
+        >
+          <GoogleIcon />
+          Continue with Google
+        </button>
+      </form>
+
+      {/* Divider */}
+      <div className="flex items-center gap-3 my-4">
+        <div className="flex-1 h-px bg-border" />
+        <span className="text-[12px] font-medium text-[var(--text-muted)]">or sign up with email</span>
+        <div className="flex-1 h-px bg-border" />
+      </div>
+
+      {/* Email / password form */}
+      <form action={action} className="space-y-3">
+        <input name="name" type="text" required autoComplete="name" placeholder="Your name" className={inputClass} />
+        <input name="email" type="email" required autoComplete="email" placeholder="Email address" className={inputClass} />
+        <input name="password" type="password" required autoComplete="new-password" placeholder="Password (8+ characters)" minLength={8} className={inputClass} />
+
+        {state && state !== 'check-email' && (
+          <p className="text-[13px] text-destructive bg-destructive/10 px-3 py-2 rounded-[10px]">{state}</p>
+        )}
+
+        <button
+          type="submit"
+          disabled={isPending}
+          className="w-full h-[48px] rounded-[14px] bg-[var(--primary-tint)] text-[var(--primary-deep)] text-[15px] font-semibold transition-all active:scale-[0.97] disabled:opacity-50"
+        >
+          {isPending ? 'Creating account…' : 'Create account'}
+        </button>
+      </form>
+
+      <p className="text-center text-[14px] text-[var(--text-muted)] mt-6">
         Already have an account?{' '}
-        <Link href="/login" className="text-primary font-medium hover:underline">
+        <Link href="/login" className="text-primary font-semibold hover:underline">
           Sign in
         </Link>
       </p>

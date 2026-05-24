@@ -13,9 +13,20 @@ export async function ensureUserRecord(user: User): Promise<void> {
       ? user.user_metadata.name
       : user.email?.split('@')[0] ?? 'User'
 
-  await prisma.user.upsert({
-    where: { id: user.id },
-    update: {},
-    create: { id: user.id, name, email: user.email ?? '' },
-  })
+  try {
+    await prisma.user.upsert({
+      where: { id: user.id },
+      update: {},
+      create: { id: user.id, name, email: user.email ?? '' },
+    })
+  } catch (e: any) {
+    if (e?.code === 'P2002') {
+      // Email exists under a different auth UUID (e.g. email signup → Google OAuth).
+      // Replace the stale row; Item.onDelete:Cascade cleans up orphaned items.
+      await prisma.user.deleteMany({ where: { email: user.email ?? '' } })
+      await prisma.user.create({ data: { id: user.id, name, email: user.email ?? '' } })
+    } else {
+      throw e
+    }
+  }
 }

@@ -21,9 +21,10 @@ export function computeCoolingUntil(
   unit: CoolingUnit
 ): Date {
   const ms =
-    unit === 'HOURS' ? value * 60 * 60 * 1000 :
-    unit === 'DAYS'  ? value * 24 * 60 * 60 * 1000 :
-                       value * 7 * 24 * 60 * 60 * 1000
+    unit === 'MINUTES' ? value * 60 * 1000 :
+    unit === 'HOURS'   ? value * 60 * 60 * 1000 :
+    unit === 'DAYS'    ? value * 24 * 60 * 60 * 1000 :
+                         value * 7 * 24 * 60 * 60 * 1000
   return new Date(from.getTime() + ms)
 }
 

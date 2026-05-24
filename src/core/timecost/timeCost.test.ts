@@ -36,6 +36,18 @@ describe('calculateTimeCost — SIMPLE mode', () => {
     const result = calculateTimeCost({ ...base, amountCents: 50_000 })
     expect(result.formatted).toMatch(/h/)
   })
+
+  it('formats as days (with hours in parens) when hours >= 24', () => {
+    // RM 5000 against RM 5000/month, 40h/week → ~173h → ~7.2 days
+    const result = calculateTimeCost({ ...base, amountCents: 500_000 })
+    expect(result.formatted).toMatch(/days? \(\d+h\)/)
+  })
+
+  it('uses singular "day" near 24h (rounds to 1 day)', () => {
+    // hourly rate ≈ 2874 cents/h → 70,000 cents ≈ 24.4h → 1.0 days → "1 day"
+    const result = calculateTimeCost({ ...base, amountCents: 70_000 })
+    expect(result.formatted).toMatch(/^1 day/)
+  })
 })
 
 describe('calculateTimeCost — TRUE_HOURLY mode', () => {

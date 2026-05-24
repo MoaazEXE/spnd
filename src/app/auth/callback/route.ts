@@ -23,8 +23,8 @@ export async function GET(request: NextRequest) {
   if (user) {
     try {
       await ensureUserRecord(user)
-    } catch {
-      // Non-fatal
+    } catch (e) {
+      console.error('[auth/callback] ensureUserRecord failed:', e)
     }
   }
 

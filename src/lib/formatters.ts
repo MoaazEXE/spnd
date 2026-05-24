@@ -11,14 +11,16 @@ export function fmtRM(cents: number, decimals: 0 | 2 = 2): string {
 
 /** Human-readable countdown from milliseconds remaining. */
 export function fmtCountdown(ms: number): string {
-  if (ms <= 0) return 'Ready to decide'
+  if (ms <= 0) return 'Ready'
   const totalSec = Math.floor(ms / 1000)
-  const days = Math.floor(totalSec / 86400)
-  const hours = Math.floor((totalSec % 86400) / 3600)
-  const minutes = Math.floor((totalSec % 3600) / 60)
-  if (days > 0) return `${days}d ${hours}h left`
-  if (hours > 0) return `${hours}h ${minutes}m left`
-  return `${minutes}m left`
+  const d = Math.floor(totalSec / 86400)
+  const h = Math.floor((totalSec % 86400) / 3600)
+  const m = Math.floor((totalSec % 3600) / 60)
+  const s = totalSec % 60
+  if (d > 0) return `${d}d ${h}h left`
+  if (h > 0) return `${h}h ${m}m left`
+  if (m > 0) return `${m}m ${String(s).padStart(2, '0')}s left`
+  return `${s}s left`
 }
 
 /** Parse a stored cooling period string like "1d" into value + unit. */

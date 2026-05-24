@@ -25,6 +25,79 @@ export interface SavingsDataPoint {
   cumulativeCents: number
 }
 
+/** Skip rate as a 0-100 integer. Returns 0 when no resolved items exist. */
+export function computeSkipRate(skippedCount: number, boughtCount: number): number {
+  const total = skippedCount + boughtCount
+  if (total === 0) return 0
+  return Math.round((skippedCount / total) * 100)
+}
+
+/** Cents saved from SKIPPED items resolved in the current calendar month. */
+export function computeThisMonthSavedCents(items: SkippedItem[]): number {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = now.getMonth()
+  return items.reduce((sum, item) => {
+    if (!item.resolvedAt) return sum
+    const d = new Date(item.resolvedAt)
+    return d.getFullYear() === y && d.getMonth() === m ? sum + item.amountCents : sum
+  }, 0)
+}
+
+export interface DailySavingsPoint {
+  date: string  // YYYY-MM-DD
+  cents: number // non-cumulative daily total
+}
+
+/** Daily (non-cumulative) savings for heatmap — each bucket is that day only. */
+export function bucketSavingsByDayRaw(items: SkippedItem[], days = 30): DailySavingsPoint[] {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const byDay = new Map<string, number>()
+  for (const item of items) {
+    if (!item.resolvedAt) continue
+    const d = new Date(item.resolvedAt)
+    d.setHours(0, 0, 0, 0)
+    const key = d.toISOString().slice(0, 10)
+    byDay.set(key, (byDay.get(key) ?? 0) + item.amountCents)
+  }
+  const result: DailySavingsPoint[] = []
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(today)
+    d.setDate(today.getDate() - i)
+    const key = d.toISOString().slice(0, 10)
+    result.push({ date: key, cents: byDay.get(key) ?? 0 })
+  }
+  return result
+}
+
+/**
+ * Consecutive save-streak ending today. If today has no saves yet, start counting
+ * from yesterday so we don't penalize an incomplete day. Returns 0 when no streak.
+ * Input must be ordered earliest → today (as produced by bucketSavingsByDayRaw).
+ */
+export function computeSavingsStreak(days: DailySavingsPoint[]): number {
+  if (days.length === 0) return 0
+  let i = days.length - 1
+  // Skip today only if it's empty — preserves yesterday's streak mid-day
+  if (days[i].cents === 0) i--
+  let streak = 0
+  while (i >= 0 && days[i].cents > 0) {
+    streak++
+    i--
+  }
+  return streak
+}
+
+/** Returns the single biggest savings day in the window, or null if all zero. */
+export function bestDailySavings(days: DailySavingsPoint[]): DailySavingsPoint | null {
+  let best: DailySavingsPoint | null = null
+  for (const d of days) {
+    if (d.cents > 0 && (!best || d.cents > best.cents)) best = d
+  }
+  return best
+}
+
 /**
  * Returns the last `days` calendar days as a running cumulative total of savings.
  * Days with no skipped items still appear (carrying the previous cumulative value).

@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { cache } from 'react'
 
 // Server-side Supabase client — use in Server Components, Server Actions, Route Handlers
 export async function createClient() {
@@ -26,3 +27,13 @@ export async function createClient() {
     }
   )
 }
+
+/**
+ * Per-request cached lookup of the authenticated user.
+ * Multiple callers in the same request (middleware-aside) share one Supabase round-trip.
+ */
+export const getCurrentUser = cache(async () => {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  return user
+})

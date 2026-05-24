@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { computeSavedCents, bucketSavingsByDay } from './savings'
+import {
+  computeSavedCents,
+  bucketSavingsByDay,
+  computeSavingsStreak,
+  bestDailySavings,
+} from './savings'
 
 describe('computeSavedCents', () => {
   it('returns 0 for empty list', () => {
@@ -61,5 +66,75 @@ describe('bucketSavingsByDay', () => {
     for (let i = 1; i < result.length; i++) {
       expect(result[i].date > result[i - 1].date).toBe(true)
     }
+  })
+})
+
+describe('computeSavingsStreak', () => {
+  it('returns 0 for empty input', () => {
+    expect(computeSavingsStreak([])).toBe(0)
+  })
+
+  it('returns 0 when no day has savings', () => {
+    expect(computeSavingsStreak([
+      { date: '2026-05-20', cents: 0 },
+      { date: '2026-05-21', cents: 0 },
+      { date: '2026-05-22', cents: 0 },
+    ])).toBe(0)
+  })
+
+  it('counts consecutive days ending today', () => {
+    expect(computeSavingsStreak([
+      { date: '2026-05-20', cents: 100 },
+      { date: '2026-05-21', cents: 200 },
+      { date: '2026-05-22', cents: 50 }, // today
+    ])).toBe(3)
+  })
+
+  it('preserves streak when today is empty (mid-day grace)', () => {
+    expect(computeSavingsStreak([
+      { date: '2026-05-20', cents: 100 },
+      { date: '2026-05-21', cents: 200 },
+      { date: '2026-05-22', cents: 0 }, // today not done yet
+    ])).toBe(2)
+  })
+
+  it('breaks streak at first gap before today', () => {
+    expect(computeSavingsStreak([
+      { date: '2026-05-19', cents: 100 },
+      { date: '2026-05-20', cents: 0 }, // gap
+      { date: '2026-05-21', cents: 200 },
+      { date: '2026-05-22', cents: 50 },
+    ])).toBe(2)
+  })
+
+  it('returns 0 when yesterday is empty and today is empty', () => {
+    expect(computeSavingsStreak([
+      { date: '2026-05-21', cents: 0 },
+      { date: '2026-05-22', cents: 0 },
+    ])).toBe(0)
+  })
+})
+
+describe('bestDailySavings', () => {
+  it('returns null when no day has savings', () => {
+    expect(bestDailySavings([{ date: '2026-05-22', cents: 0 }])).toBeNull()
+    expect(bestDailySavings([])).toBeNull()
+  })
+
+  it('returns the single biggest day', () => {
+    const best = bestDailySavings([
+      { date: '2026-05-20', cents: 100 },
+      { date: '2026-05-21', cents: 500 },
+      { date: '2026-05-22', cents: 200 },
+    ])
+    expect(best).toEqual({ date: '2026-05-21', cents: 500 })
+  })
+
+  it('ties go to the earliest day', () => {
+    const best = bestDailySavings([
+      { date: '2026-05-20', cents: 300 },
+      { date: '2026-05-21', cents: 300 },
+    ])
+    expect(best?.date).toBe('2026-05-20')
   })
 })
