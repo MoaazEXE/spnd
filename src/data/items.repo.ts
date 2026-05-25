@@ -53,7 +53,11 @@ export const itemsRepo = {
     return prisma.item.create({ data })
   },
 
-  async updateResolved(id: string, userId: string, data: { amountCents: number; status: 'BOUGHT' | 'SKIPPED' }) {
+  async updateResolved(id: string, userId: string, data: { title?: string; amountCents: number; status: 'BOUGHT' | 'SKIPPED' }) {
+    return prisma.item.update({ where: { id, userId }, data })
+  },
+
+  async updateCooling(id: string, userId: string, data: { title: string; amountCents: number; coolingUntil: Date }) {
     return prisma.item.update({ where: { id, userId }, data })
   },
 
@@ -77,12 +81,12 @@ export const itemsRepo = {
     })
   },
 
-  async snooze(id: string, userId: string) {
+  async snooze(id: string, userId: string, minutes = 1440) {
     const item = await prisma.item.findUniqueOrThrow({
       where: { id, userId },
       select: { coolingUntil: true },
     })
-    const newCoolingUntil = new Date(item.coolingUntil.getTime() + 24 * 60 * 60 * 1000)
+    const newCoolingUntil = new Date(item.coolingUntil.getTime() + minutes * 60 * 1000)
     return prisma.item.update({
       where: { id, userId },
       data: { coolingUntil: newCoolingUntil },

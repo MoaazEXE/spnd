@@ -57,13 +57,22 @@ function BagIcon() {
   )
 }
 
+const INPUT =
+  'w-full h-13 px-4 rounded-lg bg-background border border-border text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors'
+const LABEL = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground'
+
 function EditSheet({ item, onClose }: { item: WinItem; onClose: () => void }) {
   const [isPending, startTransition] = useTransition()
   const [outcome, setOutcome] = useState<'SKIPPED' | 'BOUGHT'>(item.status)
+  const [title, setTitle] = useState(item.title)
   const [amount, setAmount] = useState(String(item.amountCents / 100))
   const [fieldError, setFieldError] = useState<string | null>(null)
 
   function handleSave() {
+    if (!title.trim()) {
+      setFieldError('Enter a name.')
+      return
+    }
     const amountCents = Math.round(parseFloat(amount || '0') * 100)
     if (!Number.isFinite(amountCents) || amountCents <= 0) {
       setFieldError('Enter a valid amount.')
@@ -73,6 +82,7 @@ function EditSheet({ item, onClose }: { item: WinItem; onClose: () => void }) {
 
     const formData = new FormData()
     formData.set('id', item.id)
+    formData.set('title', title.trim())
     formData.set('amount', String(amountCents / 100))
     formData.set('outcome', outcome)
 
@@ -109,9 +119,16 @@ function EditSheet({ item, onClose }: { item: WinItem; onClose: () => void }) {
         </div>
 
         <div className="px-5 pb-8 space-y-4">
-          <p className="pt-1 text-center text-xl font-bold tracking-tight text-foreground">
-            {item.title}
-          </p>
+          <div>
+            <p className={cn(LABEL, 'mb-2')}>Name</p>
+            <input
+              type="text"
+              required
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              className={INPUT}
+            />
+          </div>
 
           <Card className="text-center">
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">

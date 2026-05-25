@@ -75,22 +75,51 @@ export async function editWin(
 ): Promise<string | null> {
   const result = await withValidation(async () => {
     const id = getRequiredString(formData, 'id')
+    const title = getRequiredString(formData, 'title')
     const amountCents = getRequiredCents(formData, 'amount')
     const outcome = getRequiredString(formData, 'outcome')
     if (outcome !== 'BOUGHT' && outcome !== 'SKIPPED') {
       throw new ValidationError('Invalid outcome.')
     }
     const userId = await getAuthUserId()
-    await itemsRepo.updateResolved(id, userId, { amountCents, status: outcome })
+    await itemsRepo.updateResolved(id, userId, { title, amountCents, status: outcome })
   })
 
   revalidatePath('/dashboard')
+  revalidatePath('/cooling')
   return typeof result === 'string' ? result : null
 }
 
-export async function snoozeItem(id: string) {
+export async function editCoolingItem(
+  _prevState: string | null,
+  formData: FormData,
+): Promise<string | null> {
+  const result = await withValidation(async () => {
+    const id = getRequiredString(formData, 'id')
+    const title = getRequiredString(formData, 'title')
+    const amountCents = getRequiredCents(formData, 'amount')
+    const coolingValueRaw = getRequiredString(formData, 'coolingValue')
+    const coolingUnit = getRequiredString(formData, 'coolingUnit') as CoolingUnit
+
+    if (!COOLING_UNITS.has(coolingUnit)) throw new ValidationError('Invalid cooling unit.')
+    const coolingValue = parseInt(coolingValueRaw, 10)
+    if (!Number.isFinite(coolingValue) || coolingValue <= 0) {
+      throw new ValidationError('Cooling period must be a positive number.')
+    }
+
+    const userId = await getAuthUserId()
+    const coolingUntil = computeCoolingUntil(new Date(), coolingValue, coolingUnit)
+    await itemsRepo.updateCooling(id, userId, { title, amountCents, coolingUntil })
+  })
+
+  revalidatePath('/dashboard')
+  revalidatePath('/cooling')
+  return typeof result === 'string' ? result : null
+}
+
+export async function snoozeItem(id: string, minutes = 1440) {
   const userId = await getAuthUserId()
-  await itemsRepo.snooze(id, userId)
+  await itemsRepo.snooze(id, userId, minutes)
   revalidatePath('/dashboard')
   revalidatePath('/cooling')
 }

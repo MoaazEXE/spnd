@@ -149,31 +149,36 @@ export function LogSheet({ onClose, defaultCoolingPeriod, timeCostContext }: Pro
           )}
 
           {isCustom && (
-            <div className="mt-2 flex items-center gap-2 bg-card rounded-lg px-4 py-3">
-              <input
-                name="coolingValue"
-                type="number"
-                inputMode="numeric"
-                min="1"
-                defaultValue="3"
-                required
-                className="w-16 h-9 px-2 rounded-sm bg-background border border-border text-sm font-semibold text-foreground text-center focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-              />
-              {(['MINUTES', 'HOURS', 'DAYS', 'WEEKS'] as const).map(unit => (
-                <label
-                  key={unit}
-                  className="h-9 px-3 rounded-sm text-sm font-semibold text-muted-foreground hover:bg-muted transition-colors flex items-center gap-1.5 cursor-pointer"
-                >
-                  <input
-                    type="radio"
-                    name="coolingUnit"
-                    value={unit}
-                    defaultChecked={unit === 'DAYS'}
-                    className="accent-primary"
-                  />
-                  <span className="capitalize">{unit.toLowerCase()}</span>
-                </label>
-              ))}
+            <div className="mt-2 bg-card rounded-lg px-4 py-3">
+              <div className="flex items-center gap-2 mb-3">
+                <input
+                  name="coolingValue"
+                  type="number"
+                  inputMode="numeric"
+                  min="1"
+                  defaultValue="3"
+                  required
+                  className="w-16 h-9 px-2 rounded-sm bg-background border border-border text-sm font-semibold text-foreground text-center focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                />
+                <span className="text-sm font-medium text-muted-foreground">of</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {(['MINUTES', 'HOURS', 'DAYS', 'WEEKS'] as const).map(unit => (
+                  <label
+                    key={unit}
+                    className="h-9 px-3 rounded-lg text-sm font-semibold transition-colors flex items-center cursor-pointer select-none has-[:checked]:bg-primary has-[:checked]:text-primary-foreground text-muted-foreground bg-background border border-border"
+                  >
+                    <input
+                      type="radio"
+                      name="coolingUnit"
+                      value={unit}
+                      defaultChecked={unit === 'DAYS'}
+                      className="sr-only"
+                    />
+                    <span className="capitalize">{unit.toLowerCase()}</span>
+                  </label>
+                ))}
+              </div>
             </div>
           )}
         </div>
