@@ -105,6 +105,52 @@ export async function acceptInvite(formData: FormData): Promise<void> {
   revalidatePath('/dashboard')
 }
 
+export async function leaveGroup(formData: FormData): Promise<void> {
+  const groupId = getRequiredString(formData, 'groupId')
+  const userId = await getAuthUserId()
+  await requireActiveMembership(groupId, userId)
+
+  const group = await prisma.group.findUnique({
+    where: { id: groupId },
+    select: { createdBy: true },
+  })
+  if (!group) throw new ValidationError('Group not found.')
+  if (group.createdBy === userId) {
+    throw new ValidationError(
+      "You're the creator — delete the group instead, or transfer it first.",
+    )
+  }
+
+  await prisma.groupMember.delete({
+    where: { groupId_userId: { groupId, userId } },
+  })
+
+  revalidatePath('/groups')
+  revalidatePath('/dashboard')
+  redirect('/groups')
+}
+
+export async function deleteGroup(formData: FormData): Promise<void> {
+  const groupId = getRequiredString(formData, 'groupId')
+  const userId = await getAuthUserId()
+  const group = await prisma.group.findUnique({
+    where: { id: groupId },
+    select: { createdBy: true },
+  })
+  if (!group) throw new ValidationError('Group not found.')
+  if (group.createdBy !== userId) {
+    throw new ValidationError('Only the creator can delete a group.')
+  }
+
+  // Cascades drop members, expenses, shares. Items lose their groupId
+  // (onDelete: SetNull) so personal cooling history survives.
+  await prisma.group.delete({ where: { id: groupId } })
+
+  revalidatePath('/groups')
+  revalidatePath('/dashboard')
+  redirect('/groups')
+}
+
 export async function rejectInvite(formData: FormData): Promise<void> {
   const groupId = getRequiredString(formData, 'groupId')
   const userId = await getAuthUserId()

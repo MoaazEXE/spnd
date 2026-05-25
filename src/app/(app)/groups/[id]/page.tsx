@@ -76,6 +76,7 @@ export default async function GroupPage({ params }: PageProps) {
       members={members}
       activity={activity}
       currentUserId={ctx.id}
+      isCreator={group.createdBy === ctx.id}
       savedTogetherCents={savedTogetherCents}
       youBalanceCents={balances.get(ctx.id) ?? 0}
     />

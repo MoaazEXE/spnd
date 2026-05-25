@@ -1,12 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, ShoppingBag, Clock, UserPlus, Scale } from 'lucide-react'
+import { ArrowLeft, ShoppingBag, Clock, UserPlus, Scale, LogOut, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { fmtRM } from '@/lib/formatters'
 import { Avatar } from '@/components/ui/avatar'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { leaveGroup, deleteGroup } from '@/app/actions/groups'
 import { AddExpenseSheet } from './add-expense-sheet'
 import { AddMemberSheet } from './add-member-sheet'
 import { EditExpenseSheet } from './edit-expense-sheet'
@@ -20,6 +22,7 @@ interface Props {
   members: GroupMemberView[]
   activity: GroupActivityView[]
   currentUserId: string
+  isCreator: boolean
   savedTogetherCents: number
   youBalanceCents: number
 }
@@ -30,6 +33,7 @@ export function GroupDetailShell({
   members,
   activity,
   currentUserId,
+  isCreator,
   savedTogetherCents,
   youBalanceCents,
 }: Props) {
@@ -37,6 +41,7 @@ export function GroupDetailShell({
   const [adding, setAdding] = useState(false)
   const [inviting, setInviting] = useState(false)
   const [editing, setEditing] = useState<GroupActivityView | null>(null)
+  const [destructive, startDestructive] = useTransition()
 
   const hasSplitActivity = activity.some(a => a.type === 'split')
 
@@ -148,6 +153,12 @@ export function GroupDetailShell({
         <MembersList
           members={members}
           currentUserId={currentUserId}
+          isCreator={isCreator}
+          youBalanceCents={youBalanceCents}
+          groupId={groupId}
+          groupName={groupName}
+          destructive={destructive}
+          startDestructive={startDestructive}
           onInvite={() => setInviting(true)}
         />
       )}
@@ -305,12 +316,56 @@ function CoolingTabEmpty() {
 
 function MembersList({
   members,
+  isCreator,
+  youBalanceCents,
+  groupId,
+  groupName,
+  destructive,
+  startDestructive,
   onInvite,
 }: {
   members: GroupMemberView[]
   currentUserId: string
+  isCreator: boolean
+  youBalanceCents: number
+  groupId: string
+  groupName: string
+  destructive: boolean
+  startDestructive: (cb: () => void | Promise<void>) => void
   onInvite: () => void
 }) {
+  function handleLeave() {
+    const balanceWarning =
+      youBalanceCents !== 0
+        ? `\n\nHeads up: your balance is ${
+            youBalanceCents > 0 ? '+' : '−'
+          }${fmtRM(Math.abs(youBalanceCents), 0)} — settle up first to avoid leaving debts behind.`
+        : ''
+    if (!confirm(`Leave "${groupName}"?${balanceWarning}`)) return
+    const fd = new FormData()
+    fd.set('groupId', groupId)
+    startDestructive(async () => {
+      await leaveGroup(fd)
+      toast.success(`You left ${groupName}`)
+    })
+  }
+
+  function handleDelete() {
+    const typed = window.prompt(
+      `Delete "${groupName}"? This removes the group and every expense in it for ALL members. Type the group name to confirm.`,
+    )
+    if (typed !== groupName) {
+      if (typed !== null) toast.error("Name didn't match — group not deleted.")
+      return
+    }
+    const fd = new FormData()
+    fd.set('groupId', groupId)
+    startDestructive(async () => {
+      await deleteGroup(fd)
+      toast.success(`Deleted ${groupName}`)
+    })
+  }
+
   return (
     <>
       <Card padding="none">
@@ -350,6 +405,7 @@ function MembersList({
           </div>
         ))}
       </Card>
+
       <button
         type="button"
         onClick={onInvite}
@@ -357,6 +413,55 @@ function MembersList({
       >
         + Invite by email
       </button>
+
+      <div className="mt-8">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-coral-deep/70 mb-2">
+          Danger zone
+        </p>
+        <Card padding="none">
+          {!isCreator && (
+            <button
+              type="button"
+              onClick={handleLeave}
+              disabled={destructive}
+              className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-coral-tint/50 transition-colors disabled:opacity-50 border-b border-sep last:border-b-0"
+            >
+              <div className="w-9 h-9 rounded-lg bg-coral-tint text-coral-deep flex items-center justify-center flex-shrink-0">
+                <LogOut size={16} strokeWidth={1.8} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-coral-deep">Leave group</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  You won&apos;t see this group anymore. Past splits stay on file.
+                </p>
+              </div>
+            </button>
+          )}
+          {isCreator && (
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={destructive}
+              className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-coral-tint/50 transition-colors disabled:opacity-50"
+            >
+              <div className="w-9 h-9 rounded-lg bg-coral-tint text-coral-deep flex items-center justify-center flex-shrink-0">
+                <Trash2 size={16} strokeWidth={1.8} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-coral-deep">Delete group</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Permanent. Removes every expense for every member.
+                </p>
+              </div>
+            </button>
+          )}
+        </Card>
+        {isCreator && (
+          <p className="mt-2 text-[11px] text-subtle-foreground">
+            As the creator you can&apos;t leave — only delete. Transfer ownership coming later.
+          </p>
+        )}
+      </div>
     </>
   )
 }
