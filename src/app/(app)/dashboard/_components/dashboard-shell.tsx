@@ -5,7 +5,7 @@ import { HeroSavings } from './hero-savings'
 import { RecentWins } from './recent-wins'
 import { SkipRateCard } from './skip-rate-card'
 import { DailySavesCard } from './daily-saves-card'
-import { GroupsMiniList } from './groups-mini-list'
+import { GroupsMiniList, type GroupMiniRow } from './groups-mini-list'
 import { CoolingCard } from './cooling-card'
 import { ReviewPill } from './review-pill'
 import { getCoolingStatus } from '@/core/cooling/coolingState'
@@ -43,6 +43,7 @@ interface Props {
   heatmapData: DailySavingsPoint[]
   greeting: string
   dateLabel: string
+  groupRows: GroupMiniRow[]
 }
 
 export function DashboardShell({
@@ -57,6 +58,7 @@ export function DashboardShell({
   heatmapData,
   greeting,
   dateLabel,
+  groupRows,
 }: Props) {
   const resolveSheet = useResolveSheet()
   const [isDesktop, setIsDesktop] = useState(false)
@@ -163,7 +165,7 @@ export function DashboardShell({
           boughtItems={boughtItems}
           maxItems={isDesktop ? 5 : 3}
         />
-        <GroupsMiniList />
+        <GroupsMiniList rows={groupRows} />
       </div>
     </div>
   )

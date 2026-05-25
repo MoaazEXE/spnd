@@ -1,8 +1,51 @@
-// Expense repository — instant splits, cooling proposals, shares, and reactions
 import { prisma } from '@/lib/prisma'
 
+interface ShareInput {
+  userId: string
+  shareCents: number
+}
+
 export const expensesRepo = {
-  // Sprint 2: create, findByGroup, upsertShare, findSharesByExpense
+  /**
+   * Create an INSTANT-type expense with all member shares in one transaction.
+   * Caller computes the per-member shareCents — we just persist them atomically.
+   */
+  async createInstant(data: {
+    groupId: string
+    payerId: string
+    amountCents: number
+    description: string
+    shares: ShareInput[]
+  }) {
+    return prisma.expense.create({
+      data: {
+        groupId: data.groupId,
+        payerId: data.payerId,
+        amountCents: data.amountCents,
+        description: data.description,
+        type: 'INSTANT',
+        status: 'COMMITTED',
+        shares: {
+          create: data.shares.map(s => ({
+            userId: s.userId,
+            shareCents: s.shareCents,
+          })),
+        },
+      },
+      include: { shares: true },
+    })
+  },
+
+  async findByGroup(groupId: string) {
+    return prisma.expense.findMany({
+      where: { groupId, status: 'COMMITTED' },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        shares: true,
+        payer: { select: { id: true, name: true } },
+      },
+    })
+  },
 } as const
 
 export type ExpensesRepo = typeof expensesRepo

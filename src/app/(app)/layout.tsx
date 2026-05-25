@@ -1,4 +1,5 @@
 import { itemsRepo } from '@/data/items.repo'
+import { groupsRepo } from '@/data/groups.repo'
 import { computeSavedCents } from '@/core/savings/savings'
 import { getUserContext } from '@/lib/user-context'
 import { Nav } from './_components/nav'
@@ -24,9 +25,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   // These two reads share the per-request cache with whatever the page also fetches,
   // so child pages pay no extra cost. Parallel for safety.
-  const [skipped, cooling] = await Promise.all([
+  const [skipped, cooling, groupsCount] = await Promise.all([
     itemsRepo.findSkippedByUser(ctx.id),
     itemsRepo.findCoolingByUser(ctx.id),
+    groupsRepo.countByUser(ctx.id),
   ])
   const savedCents = computeSavedCents(skipped)
 
@@ -55,7 +57,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             initial={ctx.initial}
             savedCents={savedCents}
             coolingCount={cooling.length}
-            groupsCount={0}
+            groupsCount={groupsCount}
           />
           <div className="flex-1 min-w-0 flex flex-col">
             <TopBar coolingItems={coolingForBell} userInitial={ctx.initial} />
