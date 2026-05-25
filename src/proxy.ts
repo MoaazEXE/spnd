@@ -38,12 +38,13 @@ export function proxy(request: NextRequest) {
     },
   )
 
-  // Supabase SSR cookie names:
+  // Supabase SSR cookie names we care about:
   //   sb-<project-ref>-auth-token          (single, small JWT)
   //   sb-<project-ref>-auth-token.0/.1/…   (chunked, large JWT — OAuth tokens are usually chunked)
-  const hasSession = request.cookies
-    .getAll()
-    .some(c => c.name.startsWith('sb-') && c.name.includes('auth-token'))
+  // We must NOT match `sb-<ref>-auth-token-code-verifier`, which Supabase sets
+  // mid-OAuth handshake before the real session exists.
+  const SESSION_COOKIE = /^sb-.+-auth-token(\.\d+)?$/
+  const hasSession = request.cookies.getAll().some(c => SESSION_COOKIE.test(c.name))
 
   const { pathname } = request.nextUrl
 
