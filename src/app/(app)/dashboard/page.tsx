@@ -1,13 +1,7 @@
 import { redirect } from 'next/navigation'
 import { itemsRepo } from '@/data/items.repo'
 import { groupsRepo } from '@/data/groups.repo'
-import {
-  computeSavedCents,
-  computeSkipRate,
-  computeThisMonthSavedCents,
-  bucketSavingsByDay,
-  bucketSavingsByDayRaw,
-} from '@/core/savings/savings'
+import { computeSkipRate, summarizeSkipped } from '@/core/savings/savings'
 import { computeBalances } from '@/core/debt/groupBalances'
 import { getUserContext } from '@/lib/user-context'
 import { buildGreeting, buildDateLabel } from '@/lib/greeting'
@@ -35,26 +29,23 @@ export default async function DashboardPage() {
     }
   })
 
-  const savedCents = computeSavedCents(skippedItems)
-  const thisMonthCents = computeThisMonthSavedCents(skippedItems)
+  const summary = summarizeSkipped(skippedItems, 30)
   const skipRatePct = computeSkipRate(skippedItems.length, boughtItems.length)
-  const savingsChartData = bucketSavingsByDay(skippedItems, 30)
-  const heatmapData = bucketSavingsByDayRaw(skippedItems, 30)
 
   const skippedWithStatus = skippedItems.map(i => ({ ...i, status: 'SKIPPED' as const }))
   const boughtWithStatus = boughtItems.map(i => ({ ...i, status: 'BOUGHT' as const }))
 
   return (
     <DashboardShell
-      savedCents={savedCents}
-      thisMonthCents={thisMonthCents}
+      savedCents={summary.totalCents}
+      thisMonthCents={summary.thisMonthCents}
       skipRatePct={skipRatePct}
       coolingItems={coolingItems}
       skippedItems={skippedWithStatus}
       boughtItems={boughtWithStatus}
       timeCostContext={ctx.timeCostContext}
-      savingsChartData={savingsChartData}
-      heatmapData={heatmapData}
+      savingsChartData={summary.cumulativeByDay}
+      heatmapData={summary.rawByDay}
       greeting={buildGreeting(ctx.name)}
       dateLabel={buildDateLabel()}
       groupRows={groupRows}

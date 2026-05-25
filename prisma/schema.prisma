@@ -75,6 +75,10 @@ model Item {
 
   user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   group Group? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status, coolingUntil])
+  @@index([userId, status, resolvedAt])
+  @@index([groupId, status])
 }
 
 model Group {
@@ -87,6 +91,8 @@ model Group {
   members  GroupMember[]
   items    Item[]
   expenses Expense[]
+
+  @@index([createdBy])
 }
 
 model GroupMember {
@@ -118,6 +124,9 @@ model Expense {
   group  Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
   payer  User           @relation(fields: [payerId], references: [id])
   shares ExpenseShare[]
+
+  @@index([groupId, status, createdAt])
+  @@index([payerId])
 }
 
 model ExpenseShare {
@@ -131,4 +140,5 @@ model ExpenseShare {
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([expenseId, userId])
+  @@index([userId])
 }

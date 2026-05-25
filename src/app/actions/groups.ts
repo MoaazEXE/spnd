@@ -105,6 +105,35 @@ export async function acceptInvite(formData: FormData): Promise<void> {
   revalidatePath('/dashboard')
 }
 
+export async function transferOwnership(formData: FormData): Promise<void> {
+  const groupId = getRequiredString(formData, 'groupId')
+  const newOwnerId = getRequiredString(formData, 'newOwnerId')
+  const userId = await getAuthUserId()
+
+  const group = await prisma.group.findUnique({
+    where: { id: groupId },
+    include: { members: { where: { status: 'ACTIVE' }, select: { userId: true } } },
+  })
+  if (!group) throw new ValidationError('Group not found.')
+  if (group.createdBy !== userId) {
+    throw new ValidationError('Only the creator can transfer ownership.')
+  }
+  if (newOwnerId === userId) {
+    throw new ValidationError("You're already the owner.")
+  }
+  if (!group.members.some(m => m.userId === newOwnerId)) {
+    throw new ValidationError('Pick an active member of this group.')
+  }
+
+  await prisma.group.update({
+    where: { id: groupId },
+    data: { createdBy: newOwnerId },
+  })
+
+  revalidatePath(`/groups/${groupId}`)
+  revalidatePath('/groups')
+}
+
 export async function leaveGroup(formData: FormData): Promise<void> {
   const groupId = getRequiredString(formData, 'groupId')
   const userId = await getAuthUserId()

@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { Trash2 } from 'lucide-react'
 import { editExpense, deleteExpense } from '@/app/actions/groups'
 import { Card } from '@/components/ui/card'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { ErrorBanner } from '@/components/ui/error-banner'
 import { SheetFrame } from '@/components/ui/sheet-frame'
 import { fmtRM } from '@/lib/formatters'
@@ -35,6 +36,7 @@ export function EditExpenseSheet({
   const [amountCents, setAmountCents] = useState(initialAmountCents)
   const [resplit, setResplit] = useState(false)
   const [isDeleting, startDelete] = useTransition()
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const wasPending = useRef(false)
 
   useEffect(() => {
@@ -51,13 +53,19 @@ export function EditExpenseSheet({
   const canSubmit = description.trim().length > 0 && amountCents > 0
 
   function doDelete() {
-    if (!confirm('Delete this activity? Balances will adjust automatically.')) return
     const fd = new FormData()
     fd.set('expenseId', expenseId)
     startDelete(async () => {
-      await deleteExpense(fd)
-      toast.success('Activity deleted')
-      onClose()
+      try {
+        await deleteExpense(fd)
+        toast.success('Activity deleted')
+        onClose()
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Could not delete activity.'
+        if (!msg.includes('NEXT_REDIRECT')) toast.error(msg)
+      } finally {
+        setConfirmingDelete(false)
+      }
     })
   }
 
@@ -70,7 +78,7 @@ export function EditExpenseSheet({
         isSettlement ? (
           <button
             type="button"
-            onClick={doDelete}
+            onClick={() => setConfirmingDelete(true)}
             disabled={isDeleting}
             className="w-full h-14 rounded-xl bg-coral-tint text-coral-deep text-sm font-semibold transition-all active:scale-[0.97] disabled:opacity-40 inline-flex items-center justify-center gap-2"
           >
@@ -190,7 +198,7 @@ export function EditExpenseSheet({
 
           <button
             type="button"
-            onClick={doDelete}
+            onClick={() => setConfirmingDelete(true)}
             disabled={isDeleting}
             className="w-full h-12 rounded-lg text-coral-deep text-sm font-semibold inline-flex items-center justify-center gap-2 hover:bg-coral-tint transition-colors disabled:opacity-50"
           >
@@ -201,6 +209,17 @@ export function EditExpenseSheet({
           <ErrorBanner message={error} />
         </form>
       )}
+
+      <ConfirmDialog
+        open={confirmingDelete}
+        title="Delete this activity?"
+        description="Balances adjust automatically. There's no undo."
+        confirmLabel="Delete"
+        destructive
+        busy={isDeleting}
+        onCancel={() => setConfirmingDelete(false)}
+        onConfirm={doDelete}
+      />
     </SheetFrame>
   )
 }

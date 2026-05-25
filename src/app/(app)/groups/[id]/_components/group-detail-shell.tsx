@@ -1,17 +1,20 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, ShoppingBag, Clock, UserPlus, Scale, LogOut, Trash2 } from 'lucide-react'
-import { toast } from 'sonner'
+import { ArrowLeft, ShoppingBag, Clock, UserPlus } from 'lucide-react'
 import { fmtRM } from '@/lib/formatters'
 import { Avatar } from '@/components/ui/avatar'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
-import { leaveGroup, deleteGroup } from '@/app/actions/groups'
+import { useGroupRealtime } from '@/lib/use-group-realtime'
 import { AddExpenseSheet } from './add-expense-sheet'
 import { AddMemberSheet } from './add-member-sheet'
 import { EditExpenseSheet } from './edit-expense-sheet'
+import { ActivityList } from './activity-list'
+import { MembersList } from './members-list'
+import { DangerZone } from './danger-zone'
+import { TransferOwnershipSheet } from './transfer-ownership-sheet'
 import type { GroupMemberView, GroupActivityView } from '../page'
 
 type Tab = 'activity' | 'cooling' | 'members'
@@ -40,8 +43,9 @@ export function GroupDetailShell({
   const [tab, setTab] = useState<Tab>('activity')
   const [adding, setAdding] = useState(false)
   const [inviting, setInviting] = useState(false)
+  const [transferring, setTransferring] = useState(false)
   const [editing, setEditing] = useState<GroupActivityView | null>(null)
-  const [destructive, startDestructive] = useTransition()
+  useGroupRealtime(groupId)
 
   const hasSplitActivity = activity.some(a => a.type === 'split')
 
@@ -150,17 +154,18 @@ export function GroupDetailShell({
       )}
       {tab === 'cooling' && <CoolingTabEmpty />}
       {tab === 'members' && (
-        <MembersList
-          members={members}
-          currentUserId={currentUserId}
-          isCreator={isCreator}
-          youBalanceCents={youBalanceCents}
-          groupId={groupId}
-          groupName={groupName}
-          destructive={destructive}
-          startDestructive={startDestructive}
-          onInvite={() => setInviting(true)}
-        />
+        <>
+          <MembersList members={members} onInvite={() => setInviting(true)} />
+          <DangerZone
+            groupId={groupId}
+            groupName={groupName}
+            isCreator={isCreator}
+            youBalanceCents={youBalanceCents}
+            members={members}
+            currentUserId={currentUserId}
+            onTransferRequest={() => setTransferring(true)}
+          />
+        </>
       )}
 
       <div className="fixed lg:static bottom-[60px] lg:bottom-auto inset-x-0 lg:inset-auto px-5 lg:px-0 py-3 lg:py-0 lg:mt-6 bg-background lg:bg-transparent border-t lg:border-t-0 border-sep z-10">
@@ -211,92 +216,16 @@ export function GroupDetailShell({
           onClose={() => setEditing(null)}
         />
       )}
-    </div>
-  )
-}
-
-function ActivityList({
-  activity,
-  onEdit,
-  memberCount,
-  groupId,
-  showResplitAll,
-}: {
-  activity: GroupActivityView[]
-  onEdit: (a: GroupActivityView) => void
-  memberCount: number
-  groupId: string
-  showResplitAll: boolean
-}) {
-  if (activity.length === 0) {
-    return (
-      <Card className="text-center py-8" padding="none">
-        <p className="text-sm font-semibold text-foreground">No activity yet.</p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Add your first expense to start splitting.
-        </p>
-      </Card>
-    )
-  }
-  return (
-    <>
-      <div className="flex flex-col gap-2.5">
-        {activity.map(a => {
-          const isSettlement = a.type === 'settlement'
-          const subtitle = isSettlement
-            ? 'Settlement'
-            : `${a.payerName} paid · split ${
-                a.shareCount === memberCount ? 'equally' : `between ${a.shareCount}`
-              }`
-          return (
-            <button
-              key={a.id}
-              type="button"
-              onClick={() => onEdit(a)}
-              className="text-left w-full rounded-2xl bg-card shadow-card p-4 transition-all hover:-translate-y-[1px] hover:shadow-card-hover active:scale-[0.99]"
-            >
-              <div className="flex items-center gap-3">
-                <div
-                  className={cn(
-                    'w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0',
-                    isSettlement
-                      ? 'bg-primary-tint text-primary-deep'
-                      : 'bg-coral-tint text-coral-deep',
-                  )}
-                >
-                  <ShoppingBag size={16} strokeWidth={1.8} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-foreground truncate">{a.title}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5 truncate">{subtitle}</p>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <p className="text-sm font-bold text-foreground tabular-nums">
-                    {fmtRM(a.amountCents, 0)}
-                  </p>
-                  {!isSettlement && a.perPersonCents > 0 && (
-                    <p className="text-[11px] text-muted-foreground mt-0.5 tabular-nums">
-                      You: {fmtRM(a.perPersonCents, 0)}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </button>
-          )
-        })}
-      </div>
-
-      {showResplitAll && memberCount > 1 && (
-        <Link
-          href={`/groups/${groupId}/resplit`}
-          prefetch
-          className="mt-3 w-full inline-flex items-center justify-center gap-2 rounded-2xl border-[1.5px] border-dashed border-sep-strong px-4 py-3 text-sm font-semibold text-primary hover:bg-card transition-colors"
-        >
-          <Scale size={14} strokeWidth={1.8} />
-          Re-split all activities equally
-        </Link>
+      {transferring && (
+        <TransferOwnershipSheet
+          groupId={groupId}
+          groupName={groupName}
+          currentUserId={currentUserId}
+          members={members}
+          onClose={() => setTransferring(false)}
+        />
       )}
-    </>
+    </div>
   )
 }
 
@@ -311,157 +240,5 @@ function CoolingTabEmpty() {
         Shared cool-offs let everyone weigh in before the group commits. Coming soon.
       </p>
     </Card>
-  )
-}
-
-function MembersList({
-  members,
-  isCreator,
-  youBalanceCents,
-  groupId,
-  groupName,
-  destructive,
-  startDestructive,
-  onInvite,
-}: {
-  members: GroupMemberView[]
-  currentUserId: string
-  isCreator: boolean
-  youBalanceCents: number
-  groupId: string
-  groupName: string
-  destructive: boolean
-  startDestructive: (cb: () => void | Promise<void>) => void
-  onInvite: () => void
-}) {
-  function handleLeave() {
-    const balanceWarning =
-      youBalanceCents !== 0
-        ? `\n\nHeads up: your balance is ${
-            youBalanceCents > 0 ? '+' : '−'
-          }${fmtRM(Math.abs(youBalanceCents), 0)} — settle up first to avoid leaving debts behind.`
-        : ''
-    if (!confirm(`Leave "${groupName}"?${balanceWarning}`)) return
-    const fd = new FormData()
-    fd.set('groupId', groupId)
-    startDestructive(async () => {
-      await leaveGroup(fd)
-      toast.success(`You left ${groupName}`)
-    })
-  }
-
-  function handleDelete() {
-    const typed = window.prompt(
-      `Delete "${groupName}"? This removes the group and every expense in it for ALL members. Type the group name to confirm.`,
-    )
-    if (typed !== groupName) {
-      if (typed !== null) toast.error("Name didn't match — group not deleted.")
-      return
-    }
-    const fd = new FormData()
-    fd.set('groupId', groupId)
-    startDestructive(async () => {
-      await deleteGroup(fd)
-      toast.success(`Deleted ${groupName}`)
-    })
-  }
-
-  return (
-    <>
-      <Card padding="none">
-        {members.map((m, i) => (
-          <div
-            key={m.id}
-            className={cn(
-              'flex items-center gap-3.5 px-4 py-3.5',
-              i < members.length - 1 && 'border-b border-sep',
-            )}
-          >
-            <Avatar name={m.name} size={36} />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-foreground truncate">{m.name}</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">
-                Joined{' '}
-                {new Date(m.joinedAt).toLocaleDateString('en-MY', {
-                  month: 'short',
-                  day: 'numeric',
-                })}
-              </p>
-            </div>
-            <p
-              className={cn(
-                'text-xs font-semibold tabular-nums flex-shrink-0',
-                m.balanceCents > 0
-                  ? 'text-primary'
-                  : m.balanceCents < 0
-                    ? 'text-coral-deep'
-                    : 'text-muted-foreground',
-              )}
-            >
-              {m.balanceCents === 0
-                ? '—'
-                : (m.balanceCents > 0 ? '+' : '−') + fmtRM(Math.abs(m.balanceCents), 0)}
-            </p>
-          </div>
-        ))}
-      </Card>
-
-      <button
-        type="button"
-        onClick={onInvite}
-        className="mt-3 w-full rounded-2xl border-[1.5px] border-dashed border-sep-strong px-4 py-3 text-sm font-semibold text-primary hover:bg-card transition-colors"
-      >
-        + Invite by email
-      </button>
-
-      <div className="mt-8">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-coral-deep/70 mb-2">
-          Danger zone
-        </p>
-        <Card padding="none">
-          {!isCreator && (
-            <button
-              type="button"
-              onClick={handleLeave}
-              disabled={destructive}
-              className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-coral-tint/50 transition-colors disabled:opacity-50 border-b border-sep last:border-b-0"
-            >
-              <div className="w-9 h-9 rounded-lg bg-coral-tint text-coral-deep flex items-center justify-center flex-shrink-0">
-                <LogOut size={16} strokeWidth={1.8} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-coral-deep">Leave group</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  You won&apos;t see this group anymore. Past splits stay on file.
-                </p>
-              </div>
-            </button>
-          )}
-          {isCreator && (
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={destructive}
-              className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-coral-tint/50 transition-colors disabled:opacity-50"
-            >
-              <div className="w-9 h-9 rounded-lg bg-coral-tint text-coral-deep flex items-center justify-center flex-shrink-0">
-                <Trash2 size={16} strokeWidth={1.8} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-coral-deep">Delete group</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Permanent. Removes every expense for every member.
-                </p>
-              </div>
-            </button>
-          )}
-        </Card>
-        {isCreator && (
-          <p className="mt-2 text-[11px] text-subtle-foreground">
-            As the creator you can&apos;t leave — only delete. Transfer ownership coming later.
-          </p>
-        )}
-      </div>
-    </>
   )
 }

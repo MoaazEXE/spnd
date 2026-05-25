@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from 'react'
 import { Bell, Users } from 'lucide-react'
 import { getCoolingStatus } from '@/core/cooling/coolingState'
 import { fmtRM } from '@/lib/formatters'
+import { useTick } from '@/lib/use-tick'
 import { acceptInvite, rejectInvite } from '@/app/actions/groups'
 import { useResolveSheet } from './resolve-sheet-context'
 
@@ -27,17 +28,12 @@ interface Props {
 
 export function NotificationBell({ items, invites }: Props) {
   const [open, setOpen] = useState(false)
-  const [now, setNow] = useState(() => new Date())
+  const now = useTick(30_000)
   const resolveSheet = useResolveSheet()
   const popRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const [pendingId, startTransition] = useTransition()
   const [actingOn, setActingOn] = useState<string | null>(null)
-
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 30_000)
-    return () => clearInterval(id)
-  }, [])
 
   useEffect(() => {
     if (!open) return

@@ -25,6 +25,62 @@ export interface SavingsDataPoint {
   cumulativeCents: number
 }
 
+export interface DailySavingsPoint {
+  date: string  // YYYY-MM-DD
+  cents: number // non-cumulative daily total
+}
+
+export interface SkippedSummary {
+  totalCents: number
+  thisMonthCents: number
+  cumulativeByDay: SavingsDataPoint[]
+  rawByDay: DailySavingsPoint[]
+}
+
+/**
+ * Single-pass aggregation over the skipped list. Walks the items ONCE to
+ * build the per-day bucket map, then derives every chart series from that
+ * map. Replaces five separate passes on the dashboard.
+ */
+export function summarizeSkipped(items: SkippedItem[], days = 30): SkippedSummary {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = now.getMonth()
+  const today = new Date(now)
+  today.setHours(0, 0, 0, 0)
+
+  let totalCents = 0
+  let thisMonthCents = 0
+  const byDay = new Map<string, number>()
+
+  for (const item of items) {
+    totalCents += item.amountCents
+    if (!item.resolvedAt) continue
+    const d = new Date(item.resolvedAt)
+    if (d.getFullYear() === y && d.getMonth() === m) {
+      thisMonthCents += item.amountCents
+    }
+    d.setHours(0, 0, 0, 0)
+    const key = d.toISOString().slice(0, 10)
+    byDay.set(key, (byDay.get(key) ?? 0) + item.amountCents)
+  }
+
+  const cumulativeByDay: SavingsDataPoint[] = []
+  const rawByDay: DailySavingsPoint[] = []
+  let cumulative = 0
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(today)
+    d.setDate(today.getDate() - i)
+    const key = d.toISOString().slice(0, 10)
+    const cents = byDay.get(key) ?? 0
+    cumulative += cents
+    cumulativeByDay.push({ date: key, cumulativeCents: cumulative })
+    rawByDay.push({ date: key, cents })
+  }
+
+  return { totalCents, thisMonthCents, cumulativeByDay, rawByDay }
+}
+
 /** Skip rate as a 0-100 integer. Returns 0 when no resolved items exist. */
 export function computeSkipRate(skippedCount: number, boughtCount: number): number {
   const total = skippedCount + boughtCount
@@ -42,11 +98,6 @@ export function computeThisMonthSavedCents(items: SkippedItem[]): number {
     const d = new Date(item.resolvedAt)
     return d.getFullYear() === y && d.getMonth() === m ? sum + item.amountCents : sum
   }, 0)
-}
-
-export interface DailySavingsPoint {
-  date: string  // YYYY-MM-DD
-  cents: number // non-cumulative daily total
 }
 
 /** Daily (non-cumulative) savings for heatmap — each bucket is that day only. */

@@ -65,7 +65,12 @@ export function SettleShell({ groupId, groupName, plan, evidence }: Props) {
     fd.set('groupId', groupId)
     for (const k of confirmed) fd.append('confirm', k)
     startSubmit(async () => {
-      await settleGroup(fd)
+      try {
+        await settleGroup(fd)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Could not record payments.'
+        if (!msg.includes('NEXT_REDIRECT')) toast.error(msg)
+      }
     })
   }
 

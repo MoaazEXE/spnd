@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
 import { getCoolingStatus } from '@/core/cooling/coolingState'
 import { fmtRM, fmtCountdown } from '@/lib/formatters'
+import { useTick } from '@/lib/use-tick'
 import { cn } from '@/lib/utils'
 
 interface CoolingCardItem {
@@ -75,12 +75,7 @@ function CircularCountdown({ progress, isReady }: { progress: number; isReady: b
 }
 
 export function CoolingCard({ item, timeCostFormatted, onResolve, size = 'sm' }: Props) {
-  const [now, setNow] = useState(() => new Date())
-
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 1_000)
-    return () => clearInterval(id)
-  }, [])
+  const now = useTick(1000)
 
   const status = getCoolingStatus({ status: 'COOLING', coolingUntil: item.coolingUntil }, now)
   const isReady = status === 'READY_TO_RESOLVE'
