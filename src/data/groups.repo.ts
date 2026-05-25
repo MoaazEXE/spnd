@@ -110,6 +110,63 @@ export const groupsRepo = {
     prisma.groupMember.count({ where: { userId, status: 'ACTIVE' } }),
   ),
 
+  async searchByUser(userId: string, query: string, limit = 5) {
+    const q = query.trim()
+    if (!q) return []
+    return prisma.group.findMany({
+      where: {
+        members: { some: { userId, status: 'ACTIVE' } },
+        name: { contains: q, mode: 'insensitive' },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      include: {
+        _count: { select: { members: { where: { status: 'ACTIVE' } } } },
+      },
+    })
+  },
+
+  /** Members of any group the user shares — for the search palette. */
+  async searchMembersByUser(userId: string, query: string, limit = 5) {
+    const q = query.trim()
+    if (!q) return []
+    return prisma.user.findMany({
+      where: {
+        AND: [
+          { id: { not: userId } },
+          {
+            OR: [
+              { name: { contains: q, mode: 'insensitive' } },
+              { email: { contains: q, mode: 'insensitive' } },
+            ],
+          },
+          {
+            groupMembers: {
+              some: {
+                status: 'ACTIVE',
+                group: { members: { some: { userId, status: 'ACTIVE' } } },
+              },
+            },
+          },
+        ],
+      },
+      take: limit,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        groupMembers: {
+          where: {
+            status: 'ACTIVE',
+            group: { members: { some: { userId, status: 'ACTIVE' } } },
+          },
+          select: { group: { select: { id: true, name: true } } },
+          take: 1,
+        },
+      },
+    })
+  },
+
   countPendingInvitesByUser: cache(async (userId: string) =>
     prisma.groupMember.count({ where: { userId, status: 'PENDING' } }),
   ),

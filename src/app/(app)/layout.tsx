@@ -8,6 +8,7 @@ import { LogModalProvider } from './_components/log-modal-context'
 import { ResolveSheetProvider } from './_components/resolve-sheet-context'
 import { LogSheetMount } from './_components/log-sheet-mount'
 import { ResolveSheetMount } from './_components/resolve-sheet-mount'
+import { LogFab } from './_components/log-fab'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const ctx = await getUserContext()
@@ -74,6 +75,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <main className="flex-1 mb-[60px] lg:mb-0">{children}</main>
           </div>
         </div>
+
+        <LogFab />
 
         {/* Sheets mounted once at layout — persist across navigation */}
         <LogSheetMount

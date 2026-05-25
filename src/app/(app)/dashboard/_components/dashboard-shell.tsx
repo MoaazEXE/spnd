@@ -5,6 +5,8 @@ import { HeroSavings } from './hero-savings'
 import { RecentWins } from './recent-wins'
 import { SkipRateCard } from './skip-rate-card'
 import { DailySavesCard } from './daily-saves-card'
+import { Plus } from 'lucide-react'
+import { useLogModal } from '@/app/(app)/_components/log-modal-context'
 import { GroupsMiniList, type GroupMiniRow } from './groups-mini-list'
 import { CoolingCard } from './cooling-card'
 import { ReviewPill } from './review-pill'
@@ -61,6 +63,7 @@ export function DashboardShell({
   groupRows,
 }: Props) {
   const resolveSheet = useResolveSheet()
+  const log = useLogModal()
   const [isDesktop, setIsDesktop] = useState(false)
 
   useEffect(() => {
@@ -124,11 +127,21 @@ export function DashboardShell({
               </p>
             )}
           </div>
-          {readyCount > 0 && (
-            <span className="px-2.5 py-1 rounded-full bg-gold-tint text-gold-deep text-[11px] font-semibold">
-              {readyCount} ready
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            {readyCount > 0 && (
+              <span className="px-2.5 py-1 rounded-full bg-gold-tint text-gold-deep text-[11px] font-semibold">
+                {readyCount} ready
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={log.open}
+              className="h-9 px-3.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold inline-flex items-center gap-1.5 hover:bg-primary-deep transition-colors active:scale-[0.97]"
+            >
+              <Plus size={14} strokeWidth={2.2} />
+              Log a temptation
+            </button>
+          </div>
         </div>
 
         {coolingItems.length === 0 ? (
@@ -141,7 +154,17 @@ export function DashboardShell({
               </div>
             }
             title="Nothing cooling."
-            subtitle="Tempted by something? Use the “Log temptation” button up top."
+            subtitle="Tempted by something? Tap Log a temptation above."
+            action={
+              <button
+                type="button"
+                onClick={log.open}
+                className="h-10 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-semibold inline-flex items-center gap-2 hover:bg-primary-deep transition-colors active:scale-[0.97]"
+              >
+                <Plus size={16} strokeWidth={2.2} />
+                Log a temptation
+              </button>
+            }
           />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">

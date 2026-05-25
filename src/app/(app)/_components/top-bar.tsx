@@ -72,13 +72,6 @@ export function TopBar({ coolingItems, invites, userInitial }: Props) {
           <Plus size={16} strokeWidth={2.2} />
           Log temptation
         </button>
-        <button
-          onClick={log.open}
-          className="lg:hidden w-10 h-10 rounded-md bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary-deep transition-colors"
-          aria-label="Log a temptation"
-        >
-          <Plus size={18} strokeWidth={2.2} />
-        </button>
 
         <div className="lg:hidden flex-shrink-0 w-9 h-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-semibold">
           {userInitial}
