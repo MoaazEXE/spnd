@@ -1,5 +1,6 @@
 'use client'
 
+import { useCallback, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -11,29 +12,91 @@ interface Props {
   size?: 'auto' | 'tall'
 }
 
+const CLOSE_DURATION = 240 // ms — matches animate-sheet-down
+const DRAG_THRESHOLD = 80  // px drag distance to trigger close
+
 /**
  * Standard bottom sheet: scrim + rounded top container + drag handle + header + body.
  * Use `footer` for a sticky action bar that should remain visible while body scrolls.
+ *
+ * Supports:
+ *  - Smooth slide-down close animation (mirrors the slide-up open)
+ *  - Drag-to-close via the handle bar at the top
  */
 export function SheetFrame({ title, onClose, children, footer, size = 'auto' }: Props) {
+  const [closing, setClosing] = useState(false)
+  const [dragY, setDragY] = useState(0)
+  const [dragging, setDragging] = useState(false)
+  const startY = useRef(0)
+  const sheetRef = useRef<HTMLDivElement>(null)
+
+  const animateClose = useCallback(() => {
+    if (closing) return
+    setClosing(true)
+    setTimeout(onClose, CLOSE_DURATION)
+  }, [closing, onClose])
+
+  /* ── Drag-to-close (pointer events work for both touch + mouse) ── */
+  function onDragStart(e: React.PointerEvent) {
+    startY.current = e.clientY
+    setDragging(true)
+    setDragY(0)
+    ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+  }
+
+  function onDragMove(e: React.PointerEvent) {
+    if (!dragging) return
+    const dy = Math.max(0, e.clientY - startY.current) // only allow downward drag
+    setDragY(dy)
+  }
+
+  function onDragEnd() {
+    if (!dragging) return
+    setDragging(false)
+    if (dragY >= DRAG_THRESHOLD) {
+      animateClose()
+    } else {
+      setDragY(0)
+    }
+  }
+
   return (
-    <div className="fixed inset-0 z-40 flex flex-col justify-end">
-      <div className="absolute inset-0 bg-foreground/40" onClick={onClose} />
+    <div
+      className={cn(
+        'fixed inset-0 z-40 flex flex-col justify-end',
+        closing && 'animate-scrim-fade-out',
+      )}
+    >
+      <div className="absolute inset-0 bg-foreground/40" onClick={animateClose} />
 
       <div
+        ref={sheetRef}
         className={cn(
-          'relative flex flex-col bg-background rounded-t-3xl animate-sheet-up',
+          'relative flex flex-col bg-background rounded-t-3xl',
+          closing ? 'animate-sheet-down' : 'animate-sheet-up',
           size === 'tall' && 'max-h-[92vh]',
         )}
+        style={
+          dragging && dragY > 0
+            ? { transform: `translateY(${dragY}px)`, transition: 'none' }
+            : undefined
+        }
       >
-        <div className="flex-shrink-0 flex justify-center pt-3 pb-1">
+        {/* Drag handle — touch/click and drag down to close */}
+        <div
+          className="flex-shrink-0 flex justify-center pt-3 pb-1 cursor-grab active:cursor-grabbing touch-none"
+          onPointerDown={onDragStart}
+          onPointerMove={onDragMove}
+          onPointerUp={onDragEnd}
+          onPointerCancel={onDragEnd}
+        >
           <div className="w-10 h-1 rounded-full bg-border" />
         </div>
 
         <div className="flex-shrink-0 flex items-center px-5 py-3">
           <button
             type="button"
-            onClick={onClose}
+            onClick={animateClose}
             aria-label="Close"
             className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted transition-colors"
           >

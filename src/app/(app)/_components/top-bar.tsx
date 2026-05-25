@@ -57,7 +57,7 @@ export function TopBar({ coolingItems, invites, userInitial }: Props) {
 
         <button
           onClick={() => setSearchOpen(true)}
-          className="lg:hidden w-10 h-10 rounded-md flex items-center justify-center hover:bg-foreground/5 transition-colors"
+          className="lg:hidden w-11 h-11 rounded-md flex items-center justify-center hover:bg-foreground/5 transition-colors"
           aria-label="Search"
         >
           <Search size={18} strokeWidth={1.8} className="text-muted-foreground" />
@@ -73,9 +73,13 @@ export function TopBar({ coolingItems, invites, userInitial }: Props) {
           Log temptation
         </button>
 
-        <div className="lg:hidden flex-shrink-0 w-9 h-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-semibold">
+        <Link
+          href="/profile"
+          className="lg:hidden flex-shrink-0 w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-semibold"
+          aria-label="Profile"
+        >
           {userInitial}
-        </div>
+        </Link>
       </header>
 
       <SearchPalette isOpen={searchOpen} onClose={() => setSearchOpen(false)} />

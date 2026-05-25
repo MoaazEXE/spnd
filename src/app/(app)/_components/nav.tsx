@@ -89,18 +89,20 @@ export function Nav({ name, email, initial, savedCents, coolingCount, groupsCoun
         </nav>
 
         <div className="flex items-center gap-2.5 rounded-md bg-card px-3 py-2.5 shadow-card">
-          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-semibold">
-            {initial}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold truncate">{name}</p>
-            <p className="text-[11px] text-muted-foreground truncate">{email}</p>
-          </div>
+          <Link href="/profile" className="flex items-center gap-2.5 flex-1 min-w-0 hover:opacity-80 transition-opacity">
+            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-semibold">
+              {initial}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold truncate">{name}</p>
+              <p className="text-[11px] text-muted-foreground truncate">{email}</p>
+            </div>
+          </Link>
           <form action={signOut}>
             <button
               type="submit"
               aria-label="Sign out"
-              className="w-7 h-7 flex items-center justify-center rounded text-muted-foreground hover:bg-foreground/6 transition-colors"
+              className="w-11 h-11 -mr-2 flex items-center justify-center rounded text-muted-foreground hover:bg-foreground/6 transition-colors"
             >
               <LogOut size={14} strokeWidth={1.8} />
             </button>

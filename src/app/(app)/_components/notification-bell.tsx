@@ -85,7 +85,7 @@ export function NotificationBell({ items, invites }: Props) {
         aria-label="Notifications"
         aria-haspopup="dialog"
         aria-expanded={open}
-        className="relative w-10 h-10 rounded-md flex items-center justify-center hover:bg-foreground/5 transition-colors"
+        className="relative w-11 h-11 rounded-md flex items-center justify-center hover:bg-foreground/5 transition-colors"
       >
         <Bell size={18} strokeWidth={1.8} className="text-muted-foreground" />
         {totalCount > 0 && (

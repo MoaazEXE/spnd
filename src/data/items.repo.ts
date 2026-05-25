@@ -31,6 +31,43 @@ export const itemsRepo = {
     return (await findAllByUserCached(userId)).all
   },
 
+  /** Aggregate sum — much faster than fetching all rows just to sum. */
+  sumSkippedCentsByUser: cache(async (userId: string) => {
+    const agg = await prisma.item.aggregate({
+      where: { userId, status: 'SKIPPED' },
+      _sum: { amountCents: true },
+    })
+    return agg._sum.amountCents ?? 0
+  }),
+
+  countCoolingByUser: cache(async (userId: string) =>
+    prisma.item.count({ where: { userId, status: 'COOLING' } }),
+  ),
+
+  /** Just cooling rows shaped for the bell — small projection. */
+  findCoolingForBellByUser: cache(async (userId: string) =>
+    prisma.item.findMany({
+      where: { userId, status: 'COOLING' },
+      orderBy: { coolingUntil: 'asc' },
+      select: { id: true, title: true, amountCents: true, coolingUntil: true },
+    }),
+  ),
+
+  /** Cooling rows shaped for resolve-sheet — adds createdAt for progress bar. */
+  findCoolingForResolveByUser: cache(async (userId: string) =>
+    prisma.item.findMany({
+      where: { userId, status: 'COOLING' },
+      orderBy: { coolingUntil: 'asc' },
+      select: {
+        id: true,
+        title: true,
+        amountCents: true,
+        coolingUntil: true,
+        createdAt: true,
+      },
+    }),
+  ),
+
   async findSkippedByUser(userId: string) {
     return (await findAllByUserCached(userId)).skipped
   },

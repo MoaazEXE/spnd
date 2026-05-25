@@ -128,7 +128,7 @@ export function ResolveSheet({ item, onClose, onSkipped }: Props) {
           <button
             type="button"
             onClick={() => setMode('edit')}
-            className="mt-5 w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors"
+            className="mt-3 w-full min-h-[44px] text-center text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center"
           >
             Edit details
           </button>
@@ -365,7 +365,7 @@ function PresetPill({
       type="button"
       onClick={onClick}
       className={cn(
-        'h-9 px-4 rounded-lg text-sm font-semibold transition-colors',
+        'h-10 px-4 rounded-lg text-sm font-semibold transition-colors',
         active
           ? 'bg-primary text-primary-foreground'
           : 'bg-card border border-border text-foreground hover:bg-muted',
