@@ -25,12 +25,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   // These two reads share the per-request cache with whatever the page also fetches,
   // so child pages pay no extra cost. Parallel for safety.
-  const [skipped, cooling, groupsCount] = await Promise.all([
+  const [skipped, cooling, groupsCount, pendingInvites] = await Promise.all([
     itemsRepo.findSkippedByUser(ctx.id),
     itemsRepo.findCoolingByUser(ctx.id),
     groupsRepo.countByUser(ctx.id),
+    groupsRepo.findPendingInvitesByUser(ctx.id),
   ])
   const savedCents = computeSavedCents(skipped)
+  const invitesForBell = pendingInvites.map(inv => ({
+    groupId: inv.groupId,
+    groupName: inv.group.name,
+    memberCount: inv.group._count.members,
+  }))
 
   const coolingForBell = cooling.map(i => ({
     id: i.id,
@@ -60,7 +66,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             groupsCount={groupsCount}
           />
           <div className="flex-1 min-w-0 flex flex-col">
-            <TopBar coolingItems={coolingForBell} userInitial={ctx.initial} />
+            <TopBar
+              coolingItems={coolingForBell}
+              invites={invitesForBell}
+              userInitial={ctx.initial}
+            />
             <main className="flex-1 mb-[60px] lg:mb-0">{children}</main>
           </div>
         </div>

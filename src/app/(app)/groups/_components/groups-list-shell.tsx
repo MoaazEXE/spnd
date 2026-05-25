@@ -1,23 +1,47 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import Link from 'next/link'
-import { Plus } from 'lucide-react'
+import { Plus, Users } from 'lucide-react'
 import { fmtRM } from '@/lib/formatters'
 import { Avatar } from '@/components/ui/avatar'
 import { Card } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
+import { acceptInvite, rejectInvite } from '@/app/actions/groups'
 import { CreateGroupSheet } from './create-group-sheet'
-import type { GroupSummary } from '../page'
+import type { GroupSummary, InvitePreview } from '../page'
 
 interface Props {
   groups: GroupSummary[]
+  invites: InvitePreview[]
   totalSavedCents: number
   currentUserId: string
 }
 
-export function GroupsListShell({ groups, totalSavedCents }: Props) {
+export function GroupsListShell({ groups, invites, totalSavedCents }: Props) {
   const [creating, setCreating] = useState(false)
+  const [pending, startTransition] = useTransition()
+  const [actingOn, setActingOn] = useState<string | null>(null)
+
+  function handleAccept(groupId: string) {
+    setActingOn(groupId)
+    const fd = new FormData()
+    fd.set('groupId', groupId)
+    startTransition(async () => {
+      await acceptInvite(fd)
+      setActingOn(null)
+    })
+  }
+
+  function handleReject(groupId: string) {
+    setActingOn(groupId)
+    const fd = new FormData()
+    fd.set('groupId', groupId)
+    startTransition(async () => {
+      await rejectInvite(fd)
+      setActingOn(null)
+    })
+  }
 
   return (
     <div className="max-w-[640px] mx-auto px-5 lg:px-12 pt-6 lg:pt-8 pb-8 lg:pb-16">
@@ -39,6 +63,53 @@ export function GroupsListShell({ groups, totalSavedCents }: Props) {
           <Plus size={20} strokeWidth={2} className="text-foreground" />
         </button>
       </header>
+
+      {invites.length > 0 && (
+        <div className="mb-5 space-y-2.5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {invites.length === 1 ? 'Pending invite' : `Pending invites · ${invites.length}`}
+          </p>
+          {invites.map(inv => {
+            const busy = pending && actingOn === inv.groupId
+            return (
+              <Card key={inv.groupId} padding="sm" className="border border-primary-soft">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-primary-tint flex items-center justify-center text-primary-deep">
+                    <Users size={18} strokeWidth={1.8} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-foreground truncate">
+                      {inv.groupName}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Invited you · {inv.memberCount}{' '}
+                      {inv.memberCount === 1 ? 'member' : 'members'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleReject(inv.groupId)}
+                    disabled={!!busy}
+                    className="flex-1 h-9 rounded-md text-xs font-semibold text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                  >
+                    {busy ? '…' : 'Reject'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAccept(inv.groupId)}
+                    disabled={!!busy}
+                    className="flex-1 h-9 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary-deep transition-colors disabled:opacity-50"
+                  >
+                    {busy ? '…' : 'Accept'}
+                  </button>
+                </div>
+              </Card>
+            )
+          })}
+        </div>
+      )}
 
       <div className="rounded-2xl p-5 mb-5 text-white shadow-card bg-gradient-to-br from-primary to-primary-deep">
         <p className="text-xs font-semibold uppercase tracking-wide opacity-70">

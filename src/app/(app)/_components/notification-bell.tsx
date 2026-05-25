@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { Bell } from 'lucide-react'
+import { useEffect, useRef, useState, useTransition } from 'react'
+import { Bell, Users } from 'lucide-react'
 import { getCoolingStatus } from '@/core/cooling/coolingState'
 import { fmtRM } from '@/lib/formatters'
+import { acceptInvite, rejectInvite } from '@/app/actions/groups'
 import { useResolveSheet } from './resolve-sheet-context'
 
 interface CoolingItem {
@@ -13,16 +14,25 @@ interface CoolingItem {
   coolingUntil: Date
 }
 
-interface Props {
-  items: CoolingItem[]
+export interface PendingInvite {
+  groupId: string
+  groupName: string
+  memberCount: number
 }
 
-export function NotificationBell({ items }: Props) {
+interface Props {
+  items: CoolingItem[]
+  invites: PendingInvite[]
+}
+
+export function NotificationBell({ items, invites }: Props) {
   const [open, setOpen] = useState(false)
   const [now, setNow] = useState(() => new Date())
   const resolveSheet = useResolveSheet()
   const popRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
+  const [pendingId, startTransition] = useTransition()
+  const [actingOn, setActingOn] = useState<string | null>(null)
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 30_000)
@@ -44,9 +54,31 @@ export function NotificationBell({ items }: Props) {
     i => getCoolingStatus({ status: 'COOLING', coolingUntil: i.coolingUntil }, now) === 'READY_TO_RESOLVE',
   )
 
+  const totalCount = ready.length + invites.length
+
   function handleClick(id: string) {
     setOpen(false)
     resolveSheet.open(id)
+  }
+
+  function handleAccept(groupId: string) {
+    setActingOn(groupId)
+    const fd = new FormData()
+    fd.set('groupId', groupId)
+    startTransition(async () => {
+      await acceptInvite(fd)
+      setActingOn(null)
+    })
+  }
+
+  function handleReject(groupId: string) {
+    setActingOn(groupId)
+    const fd = new FormData()
+    fd.set('groupId', groupId)
+    startTransition(async () => {
+      await rejectInvite(fd)
+      setActingOn(null)
+    })
   }
 
   return (
@@ -60,7 +92,7 @@ export function NotificationBell({ items }: Props) {
         className="relative w-10 h-10 rounded-md flex items-center justify-center hover:bg-foreground/5 transition-colors"
       >
         <Bell size={18} strokeWidth={1.8} className="text-muted-foreground" />
-        {ready.length > 0 && (
+        {totalCount > 0 && (
           <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-gold ring-2 ring-background" />
         )}
       </button>
@@ -69,50 +101,110 @@ export function NotificationBell({ items }: Props) {
         <div
           ref={popRef}
           role="dialog"
-          className="fixed lg:absolute left-3 right-3 top-[68px] lg:left-auto lg:right-0 lg:top-full lg:mt-2 lg:w-[340px] bg-card rounded-xl shadow-pop border border-sep overflow-hidden z-50 animate-fade-in"
+          className="fixed lg:absolute left-3 right-3 top-[68px] lg:left-auto lg:right-0 lg:top-full lg:mt-2 lg:w-[360px] bg-card rounded-xl shadow-pop border border-sep overflow-hidden z-50 animate-fade-in"
         >
           <div className="flex items-center justify-between px-4 py-3 border-b border-sep">
             <p className="text-xs font-semibold text-foreground">Notifications</p>
-            {ready.length > 0 && (
+            {totalCount > 0 && (
               <span className="px-2 py-0.5 rounded-full bg-gold-tint text-gold-deep text-[11px] font-semibold">
-                {ready.length} ready
+                {totalCount} new
               </span>
             )}
           </div>
 
-          <div className="max-h-[360px] overflow-y-auto">
-            {ready.length === 0 ? (
+          <div className="max-h-[420px] overflow-y-auto">
+            {invites.length > 0 && (
+              <>
+                <p className="px-4 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Group invites
+                </p>
+                <ul className="pb-1">
+                  {invites.map(inv => {
+                    const busy = pendingId && actingOn === inv.groupId
+                    return (
+                      <li key={inv.groupId} className="px-4 py-3 border-b border-sep last:border-b-0">
+                        <div className="flex items-center gap-3 mb-2.5">
+                          <div className="flex-shrink-0 w-9 h-9 rounded-sm bg-primary-tint flex items-center justify-center text-primary-deep">
+                            <Users size={16} strokeWidth={1.8} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-foreground truncate">
+                              {inv.groupName}
+                            </p>
+                            <p className="text-[11px] text-muted-foreground">
+                              {inv.memberCount} {inv.memberCount === 1 ? 'member' : 'members'} ·
+                              invited you
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleReject(inv.groupId)}
+                            disabled={!!busy}
+                            className="flex-1 h-9 rounded-md text-xs font-semibold text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                          >
+                            {busy ? '…' : 'Reject'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleAccept(inv.groupId)}
+                            disabled={!!busy}
+                            className="flex-1 h-9 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary-deep transition-colors disabled:opacity-50"
+                          >
+                            {busy ? '…' : 'Accept'}
+                          </button>
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </>
+            )}
+
+            {ready.length > 0 && (
+              <>
+                {invites.length > 0 && (
+                  <p className="px-4 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Ready to decide
+                  </p>
+                )}
+                <ul>
+                  {ready.map(item => (
+                    <li key={item.id}>
+                      <button
+                        onClick={() => handleClick(item.id)}
+                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-primary-tint/40 transition-colors text-left"
+                      >
+                        <div className="flex-shrink-0 w-9 h-9 rounded-sm bg-gold-tint flex items-center justify-center">
+                          <span className="text-gold-deep">✦</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-foreground truncate">
+                            {item.title}
+                          </p>
+                          <p className="text-[11px] font-medium text-gold-deep">Ready to decide</p>
+                        </div>
+                        <span className="flex-shrink-0 text-xs font-semibold text-foreground tabular-nums">
+                          {fmtRM(item.amountCents, 0)}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+
+            {totalCount === 0 && (
               <div className="px-4 py-8 text-center">
                 <div className="mx-auto mb-2 w-10 h-10 rounded-full bg-primary-tint flex items-center justify-center">
                   <Bell size={16} strokeWidth={1.8} className="text-primary" />
                 </div>
                 <p className="text-xs text-muted-foreground">You&apos;re all caught up.</p>
                 <p className="mt-0.5 text-[11px] text-subtle-foreground">
-                  We&apos;ll ping you when cooling timers finish.
+                  Cooling timers and group invites will land here.
                 </p>
               </div>
-            ) : (
-              <ul>
-                {ready.map(item => (
-                  <li key={item.id}>
-                    <button
-                      onClick={() => handleClick(item.id)}
-                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-primary-tint/40 transition-colors text-left"
-                    >
-                      <div className="flex-shrink-0 w-9 h-9 rounded-sm bg-gold-tint flex items-center justify-center">
-                        <span className="text-gold-deep">✦</span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-foreground truncate">{item.title}</p>
-                        <p className="text-[11px] font-medium text-gold-deep">Ready to decide</p>
-                      </div>
-                      <span className="flex-shrink-0 text-xs font-semibold text-foreground tabular-nums">
-                        {fmtRM(item.amountCents, 0)}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
             )}
           </div>
         </div>

@@ -13,11 +13,26 @@ export interface GroupSummary {
   savedTogetherCents: number
 }
 
+export interface InvitePreview {
+  groupId: string
+  groupName: string
+  memberCount: number
+}
+
 export default async function GroupsPage() {
   const ctx = await getUserContext()
   if (!ctx) redirect('/login')
 
-  const groups = await groupsRepo.findManyByUserDeep(ctx.id)
+  const [groups, pendingInvites] = await Promise.all([
+    groupsRepo.findManyByUserDeep(ctx.id),
+    groupsRepo.findPendingInvitesByUser(ctx.id),
+  ])
+
+  const invites: InvitePreview[] = pendingInvites.map(inv => ({
+    groupId: inv.groupId,
+    groupName: inv.group.name,
+    memberCount: inv.group._count.members,
+  }))
 
   const summaries: GroupSummary[] = groups.map(g => {
     const balances = computeBalances(g.expenses)
@@ -37,6 +52,7 @@ export default async function GroupsPage() {
   return (
     <GroupsListShell
       groups={summaries}
+      invites={invites}
       totalSavedCents={totalSavedCents}
       currentUserId={ctx.id}
     />

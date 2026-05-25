@@ -30,6 +30,11 @@ enum Reaction {
   SKIP
 }
 
+enum InviteStatus {
+  PENDING
+  ACTIVE
+}
+
 enum TimeCostMode {
   SIMPLE
   TRUE_HOURLY
@@ -85,15 +90,18 @@ model Group {
 }
 
 model GroupMember {
-  id       String   @id @default(cuid())
+  id       String       @id @default(cuid())
   groupId  String
   userId   String
-  joinedAt DateTime @default(now())
+  status   InviteStatus @default(ACTIVE)
+  invitedBy String?
+  joinedAt DateTime     @default(now())
 
   group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([groupId, userId])
+  @@index([userId, status])
 }
 
 model Expense {

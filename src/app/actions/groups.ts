@@ -22,11 +22,13 @@ async function getAuthUserId(): Promise<string> {
   return user.id
 }
 
-async function requireMembership(groupId: string, userId: string): Promise<void> {
+async function requireActiveMembership(groupId: string, userId: string): Promise<void> {
   const member = await prisma.groupMember.findUnique({
     where: { groupId_userId: { groupId, userId } },
   })
-  if (!member) throw new ValidationError("You're not a member of this group.")
+  if (!member || member.status !== 'ACTIVE') {
+    throw new ValidationError("You're not a member of this group.")
+  }
 }
 
 export async function createGroup(
@@ -48,7 +50,7 @@ export async function createGroup(
   return null
 }
 
-export async function addMemberByEmail(
+export async function inviteMemberByEmail(
   _prevState: string | null,
   formData: FormData,
 ): Promise<string | null> {
@@ -56,7 +58,7 @@ export async function addMemberByEmail(
     const groupId = getRequiredString(formData, 'groupId')
     const email = getRequiredString(formData, 'email').toLowerCase()
     const userId = await getAuthUserId()
-    await requireMembership(groupId, userId)
+    await requireActiveMembership(groupId, userId)
 
     const invitee = await prisma.user.findUnique({ where: { email } })
     if (!invitee) {
@@ -67,7 +69,18 @@ export async function addMemberByEmail(
     if (invitee.id === userId) {
       throw new ValidationError("You're already in this group.")
     }
-    await groupsRepo.addMember(groupId, invitee.id)
+
+    const existing = await prisma.groupMember.findUnique({
+      where: { groupId_userId: { groupId, userId: invitee.id } },
+    })
+    if (existing?.status === 'ACTIVE') {
+      throw new ValidationError("They're already in this group.")
+    }
+    if (existing?.status === 'PENDING') {
+      throw new ValidationError("They already have a pending invite.")
+    }
+
+    await groupsRepo.inviteMember(groupId, invitee.id, userId)
   })
 
   if (typeof result === 'string') return result
@@ -75,6 +88,41 @@ export async function addMemberByEmail(
   if (typeof groupId === 'string') revalidatePath(`/groups/${groupId}`)
   revalidatePath('/groups')
   return null
+}
+
+export async function acceptInvite(formData: FormData): Promise<void> {
+  const groupId = getRequiredString(formData, 'groupId')
+  const userId = await getAuthUserId()
+  const invite = await prisma.groupMember.findUnique({
+    where: { groupId_userId: { groupId, userId } },
+  })
+  if (!invite || invite.status !== 'PENDING') {
+    throw new ValidationError('No pending invite for this group.')
+  }
+  await groupsRepo.acceptInvite(groupId, userId)
+  revalidatePath('/groups')
+  revalidatePath(`/groups/${groupId}`)
+  revalidatePath('/dashboard')
+}
+
+export async function rejectInvite(formData: FormData): Promise<void> {
+  const groupId = getRequiredString(formData, 'groupId')
+  const userId = await getAuthUserId()
+  const invite = await prisma.groupMember.findUnique({
+    where: { groupId_userId: { groupId, userId } },
+  })
+  if (!invite || invite.status !== 'PENDING') return
+  await groupsRepo.rejectInvite(groupId, userId)
+  revalidatePath('/groups')
+  revalidatePath('/dashboard')
+}
+
+function parseParticipants(formData: FormData): string[] {
+  // Form sends multiple <input name="participants" value="<userId>"> entries.
+  const all = formData.getAll('participants')
+  return all
+    .filter((v): v is string => typeof v === 'string' && v.length > 0)
+    .filter((v, i, arr) => arr.indexOf(v) === i)
 }
 
 export async function addExpense(
@@ -86,16 +134,33 @@ export async function addExpense(
     const description = getRequiredString(formData, 'description')
     const amountCents = getRequiredCents(formData, 'amount')
     const userId = await getAuthUserId()
-    await requireMembership(groupId, userId)
+    await requireActiveMembership(groupId, userId)
 
     const group = await prisma.group.findUnique({
       where: { id: groupId },
-      include: { members: { select: { userId: true } } },
+      include: {
+        members: {
+          where: { status: 'ACTIVE' },
+          select: { userId: true },
+        },
+      },
     })
     if (!group) throw new ValidationError('Group not found.')
 
-    const memberIds = group.members.map(m => m.userId)
-    const shares = equalSplit(amountCents, memberIds, userId)
+    const activeIds = new Set(group.members.map(m => m.userId))
+    const requested = parseParticipants(formData)
+    const participants = requested.length > 0 ? requested : Array.from(activeIds)
+
+    for (const id of participants) {
+      if (!activeIds.has(id)) {
+        throw new ValidationError('One of the selected people is not a group member.')
+      }
+    }
+    if (participants.length === 0) {
+      throw new ValidationError('Pick at least one person to split this with.')
+    }
+
+    const shares = equalSplit(amountCents, participants, userId)
 
     await expensesRepo.createInstant({
       groupId,
@@ -115,7 +180,16 @@ export async function addExpense(
 async function requireExpenseAccess(expenseId: string, userId: string) {
   const expense = await prisma.expense.findUnique({
     where: { id: expenseId },
-    include: { group: { include: { members: { select: { userId: true } } } } },
+    include: {
+      group: {
+        include: {
+          members: {
+            where: { status: 'ACTIVE' },
+            select: { userId: true },
+          },
+        },
+      },
+    },
   })
   if (!expense) throw new ValidationError('Activity not found.')
   if (!expense.group.members.some(m => m.userId === userId)) {
@@ -154,7 +228,6 @@ export async function editExpense(
         }),
       ])
     } else {
-      // Preserve the original share *ratio* against the new amount.
       const original = await prisma.expenseShare.findMany({ where: { expenseId } })
       const oldTotal = original.reduce((sum, s) => sum + s.shareCents, 0)
       if (oldTotal === 0) {
@@ -219,12 +292,12 @@ export async function resplitExpense(formData: FormData): Promise<void> {
 export async function resplitAll(formData: FormData): Promise<void> {
   const groupId = getRequiredString(formData, 'groupId')
   const userId = await getAuthUserId()
-  await requireMembership(groupId, userId)
+  await requireActiveMembership(groupId, userId)
 
   const group = await prisma.group.findUnique({
     where: { id: groupId },
     include: {
-      members: { select: { userId: true } },
+      members: { where: { status: 'ACTIVE' }, select: { userId: true } },
       expenses: {
         where: { status: 'COMMITTED', NOT: { description: 'Settlement' } },
         select: { id: true, amountCents: true, payerId: true },
@@ -253,19 +326,38 @@ export async function resplitAll(formData: FormData): Promise<void> {
   redirect(`/groups/${groupId}`)
 }
 
+/**
+ * Settle up — records ONLY the per-payment toggles the user explicitly
+ * confirmed. Each formData entry like `confirm:<from>:<to>:<cents>` represents
+ * one accepted row from the simplified plan.
+ */
 export async function settleGroup(formData: FormData): Promise<void> {
   const groupId = getRequiredString(formData, 'groupId')
   const userId = await getAuthUserId()
-  await requireMembership(groupId, userId)
+  await requireActiveMembership(groupId, userId)
 
+  const confirmed = formData.getAll('confirm').filter((v): v is string => typeof v === 'string')
+  if (confirmed.length === 0) {
+    redirect(`/groups/${groupId}`)
+  }
+
+  // Recompute the plan server-side and only record rows the client confirmed,
+  // and only those the current user is allowed to confirm (payer = themselves,
+  // OR recipient = themselves with explicit confirm-received).
   const expenses = await expensesRepo.findByGroup(groupId)
   const plan = settlementPlan(expenses)
-  if (plan.length === 0) return
 
-  // Record each simplified payment as an Expense — the resulting share offsets
-  // exactly cancel the original debts, so subsequent balances read as zero.
+  const accepted = plan.filter(p => {
+    const key = `${p.from}:${p.to}:${p.amountCents}`
+    if (!confirmed.includes(key)) return false
+    return p.from === userId || p.to === userId
+  })
+  if (accepted.length === 0) {
+    redirect(`/groups/${groupId}`)
+  }
+
   await prisma.$transaction(
-    plan.map(p =>
+    accepted.map(p =>
       prisma.expense.create({
         data: {
           groupId,
@@ -284,3 +376,4 @@ export async function settleGroup(formData: FormData): Promise<void> {
   revalidatePath('/groups')
   redirect(`/groups/${groupId}`)
 }
+

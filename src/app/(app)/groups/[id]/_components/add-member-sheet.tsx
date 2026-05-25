@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { addMemberByEmail } from '@/app/actions/groups'
+import { inviteMemberByEmail } from '@/app/actions/groups'
 import { ErrorBanner } from '@/components/ui/error-banner'
 import { SheetFrame } from '@/components/ui/sheet-frame'
 
@@ -12,14 +12,14 @@ interface Props {
 }
 
 export function AddMemberSheet({ groupId, onClose }: Props) {
-  const [error, action, isPending] = useActionState(addMemberByEmail, null)
+  const [error, action, isPending] = useActionState(inviteMemberByEmail, null)
   const [email, setEmail] = useState('')
   const wasPending = useRef(false)
 
   useEffect(() => {
     if (wasPending.current && !isPending && error === null) {
-      toast.success('Member added', {
-        description: `${email} now sees this group.`,
+      toast.success('Invite sent', {
+        description: `${email} will see it in their notifications.`,
       })
       onClose()
     }
@@ -38,7 +38,7 @@ export function AddMemberSheet({ groupId, onClose }: Props) {
           disabled={isPending || email.trim().length === 0}
           className="w-full h-14 rounded-xl bg-primary text-primary-foreground text-base font-semibold transition-all active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          {isPending ? 'Adding…' : 'Add to group'}
+          {isPending ? 'Sending…' : 'Send invite'}
         </button>
       }
     >
@@ -46,8 +46,8 @@ export function AddMemberSheet({ groupId, onClose }: Props) {
         <input type="hidden" name="groupId" value={groupId} />
 
         <p className="text-sm text-muted-foreground leading-relaxed">
-          They&apos;ll need to have a Settle account already. We&apos;ll add them straight away
-          — no invite email yet.
+          They need a Settle account already. They&apos;ll see your invite in their
+          notifications and can accept or reject — only then do they join the group.
         </p>
 
         <div className="space-y-2">

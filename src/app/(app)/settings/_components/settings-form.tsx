@@ -1,6 +1,7 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useActionState, useEffect, useRef, useState } from 'react'
+import { toast } from 'sonner'
 import { saveIncomeSettings } from '@/app/actions/users'
 import { calculateTimeCost } from '@/core/timecost/timeCost'
 import { Card } from '@/components/ui/card'
@@ -23,6 +24,15 @@ interface Props {
 
 export function SettingsForm({ initial }: Props) {
   const [message, action, isPending] = useActionState(saveIncomeSettings, null)
+  const wasPending = useRef(false)
+  useEffect(() => {
+    if (wasPending.current && !isPending && message === null) {
+      toast.success('Settings saved', {
+        description: 'Your hourly lens has been updated.',
+      })
+    }
+    wasPending.current = isPending
+  }, [isPending, message])
   const [income, setIncome] = useState(
     initial.monthlyIncomeCents ? String(initial.monthlyIncomeCents / 100) : '',
   )

@@ -177,7 +177,11 @@ export function GroupDetailShell({
       {adding && (
         <AddExpenseSheet
           groupId={groupId}
-          memberCount={members.length}
+          members={members.map(m => ({
+            id: m.id,
+            name: m.name,
+            isYou: m.id === currentUserId,
+          }))}
           onClose={() => setAdding(false)}
         />
       )}
