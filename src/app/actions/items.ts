@@ -6,56 +6,60 @@ import { itemsRepo } from '@/data/items.repo'
 import { usersRepo } from '@/data/users.repo'
 import { ensureUserRecord } from '@/lib/ensure-user'
 import { computeCoolingUntil } from '@/core/cooling/coolingState'
+import {
+  getRequiredString,
+  getString,
+  getRequiredCents,
+  ValidationError,
+  withValidation,
+} from '@/lib/form-data'
 import type { CoolingUnit } from '@/types'
+
+const COOLING_UNITS = new Set<CoolingUnit>(['MINUTES', 'HOURS', 'DAYS', 'WEEKS'])
 
 async function getAuthUserId(): Promise<string> {
   const user = await getCurrentUser()
-  if (!user) throw new Error('Unauthorized')
+  if (!user) throw new ValidationError('Unauthorized')
+  // ensureUserRecord wants a Supabase-User shape — pass the minimal claims subset
   await ensureUserRecord(user)
   return user.id
 }
 
+function unitToSuffix(unit: CoolingUnit): string {
+  if (unit === 'MINUTES') return 'm'
+  if (unit === 'HOURS') return 'h'
+  if (unit === 'DAYS') return 'd'
+  return 'w'
+}
+
 export async function logItem(
-  prevState: string | null,
+  _prevState: string | null,
   formData: FormData,
 ): Promise<string | null> {
-  const title = formData.get('title')
-  const amountRaw = formData.get('amount')
-  const coolingValue = formData.get('coolingValue')
-  const coolingUnit = formData.get('coolingUnit')
-  const note = formData.get('note')
+  const result = await withValidation(async () => {
+    const title = getRequiredString(formData, 'title')
+    const amountCents = getRequiredCents(formData, 'amount')
+    const coolingValueRaw = getRequiredString(formData, 'coolingValue')
+    const coolingUnit = getRequiredString(formData, 'coolingUnit') as CoolingUnit
 
-  if (typeof title !== 'string' || !title.trim()) return 'Name is required.'
-  if (typeof amountRaw !== 'string') return 'Amount is required.'
-  if (typeof coolingValue !== 'string' || typeof coolingUnit !== 'string') return 'Cooling period is required.'
+    if (!COOLING_UNITS.has(coolingUnit)) throw new ValidationError('Invalid cooling unit.')
 
-  const amountCents = Math.round(parseFloat(amountRaw) * 100)
-  if (!Number.isFinite(amountCents) || amountCents <= 0) return 'Enter a valid amount.'
+    const coolingValue = parseInt(coolingValueRaw, 10)
+    if (!Number.isFinite(coolingValue) || coolingValue <= 0) {
+      throw new ValidationError('Cooling period must be a positive number.')
+    }
 
-  const userId = await getAuthUserId()
-  const coolingUntil = computeCoolingUntil(
-    new Date(),
-    parseInt(coolingValue, 10),
-    coolingUnit as CoolingUnit,
-  )
+    const userId = await getAuthUserId()
+    const coolingUntil = computeCoolingUntil(new Date(), coolingValue, coolingUnit)
+    const note = getString(formData, 'note')?.trim() || undefined
 
-  await itemsRepo.create({
-    userId,
-    title: title.trim(),
-    amountCents,
-    coolingUntil,
-    note: typeof note === 'string' && note.trim() ? note.trim() : undefined,
+    await itemsRepo.create({ userId, title, amountCents, coolingUntil, note })
+    await usersRepo.updateDefaultCoolingPeriod(userId, `${coolingValue}${unitToSuffix(coolingUnit)}`)
   })
-
-  // Remember last used cooling period as the new default
-  await usersRepo.updateDefaultCoolingPeriod(
-    userId,
-    `${coolingValue}${coolingUnit === 'MINUTES' ? 'm' : coolingUnit === 'HOURS' ? 'h' : coolingUnit === 'DAYS' ? 'd' : 'w'}`,
-  )
 
   revalidatePath('/dashboard')
   revalidatePath('/cooling')
-  return null
+  return typeof result === 'string' ? result : null
 }
 
 export async function resolveItem(id: string, outcome: 'BOUGHT' | 'SKIPPED') {
@@ -66,23 +70,22 @@ export async function resolveItem(id: string, outcome: 'BOUGHT' | 'SKIPPED') {
 }
 
 export async function editWin(
-  prevState: string | null,
+  _prevState: string | null,
   formData: FormData,
 ): Promise<string | null> {
-  const id = formData.get('id') as string
-  const amountRaw = formData.get('amount') as string
-  const outcome = formData.get('outcome') as string
-
-  if (!id) return 'Item not found.'
-  const amountCents = Math.round(parseFloat(amountRaw || '0') * 100)
-  if (!Number.isFinite(amountCents) || amountCents <= 0) return 'Enter a valid amount.'
-  if (outcome !== 'BOUGHT' && outcome !== 'SKIPPED') return 'Invalid outcome.'
-
-  const userId = await getAuthUserId()
-  await itemsRepo.updateResolved(id, userId, { amountCents, status: outcome as 'BOUGHT' | 'SKIPPED' })
+  const result = await withValidation(async () => {
+    const id = getRequiredString(formData, 'id')
+    const amountCents = getRequiredCents(formData, 'amount')
+    const outcome = getRequiredString(formData, 'outcome')
+    if (outcome !== 'BOUGHT' && outcome !== 'SKIPPED') {
+      throw new ValidationError('Invalid outcome.')
+    }
+    const userId = await getAuthUserId()
+    await itemsRepo.updateResolved(id, userId, { amountCents, status: outcome })
+  })
 
   revalidatePath('/dashboard')
-  return null
+  return typeof result === 'string' ? result : null
 }
 
 export async function snoozeItem(id: string) {

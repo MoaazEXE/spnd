@@ -1,35 +1,34 @@
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { redirect } from 'next/navigation'
-import { getCurrentUser } from '@/lib/supabase/server'
 import { usersRepo } from '@/data/users.repo'
+import { getUserContext } from '@/lib/user-context'
 import { SettingsForm } from './_components/settings-form'
 
 export default async function SettingsPage() {
-  const user = await getCurrentUser()
-  if (!user) redirect('/login')
+  const ctx = await getUserContext()
+  if (!ctx) redirect('/login')
 
-  const dbUser = await usersRepo.findById(user.id)
+  const dbUser = await usersRepo.findById(ctx.id)
 
   return (
     <div className="max-w-[920px] mx-auto px-5 pt-4 pb-12 lg:px-12 lg:pt-10">
-      {/* Mobile back link — desktop sidebar provides nav */}
       <Link
         href="/dashboard"
-        className="lg:hidden inline-flex items-center gap-1.5 text-[13px] font-medium text-[var(--text-muted)] hover:text-foreground transition-colors mb-3"
+        className="lg:hidden inline-flex items-center gap-1.5 mb-3 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
       >
         <ArrowLeft size={16} strokeWidth={2} />
         Dashboard
       </Link>
 
-      <div className="mb-7 lg:mb-9">
-        <h1 className="text-[28px] lg:text-[40px] font-bold tracking-[-0.8px] lg:tracking-[-1.2px] text-foreground">Income</h1>
-        <p className="text-[13px] lg:text-[14px] text-[var(--text-muted)] mt-1.5">
+      <header className="mb-7 lg:mb-9">
+        <h1 className="text-3xl lg:text-4xl font-bold tracking-tight text-foreground">Income</h1>
+        <p className="mt-1.5 text-sm text-muted-foreground">
           Calibrate the &ldquo;hours of your life&rdquo; lens.
         </p>
-      </div>
+      </header>
 
-      <div className="bg-card rounded-[20px] p-5 lg:p-8 shadow-[0_1px_2px_rgba(31,42,46,0.04),0_4px_16px_rgba(31,42,46,0.04)]">
+      <div className="rounded-card bg-card p-5 lg:p-8 shadow-card">
         <SettingsForm
           initial={{
             monthlyIncomeCents: dbUser?.monthlyIncomeCents ?? null,

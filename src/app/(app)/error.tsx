@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 
-export default function DashboardError({
+export default function AppError({
   error,
   reset,
 }: {
@@ -10,7 +10,7 @@ export default function DashboardError({
   reset: () => void
 }) {
   useEffect(() => {
-    console.error('[Dashboard error]', error)
+    console.error('[App error]', error)
   }, [error])
 
   return (
@@ -19,12 +19,9 @@ export default function DashboardError({
         <span className="text-xl text-destructive">!</span>
       </div>
       <h2 className="mb-1 text-base font-semibold text-foreground">Something went wrong</h2>
-      <p className="mb-2 max-w-xs text-xs text-muted-foreground leading-relaxed">
-        {error.message || 'Could not load your dashboard.'}
+      <p className="mb-4 max-w-xs text-xs text-muted-foreground leading-relaxed">
+        {error.message || 'Could not load this page.'}
       </p>
-      {error.digest && (
-        <p className="mb-4 font-mono text-[11px] text-muted-foreground/60">{error.digest}</p>
-      )}
       <button
         onClick={reset}
         className="h-10 px-5 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary-deep transition-colors"

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { CoolingCard } from '@/app/(app)/dashboard/_components/cooling-card'
 import { useResolveSheet } from '@/app/(app)/_components/resolve-sheet-context'
 import { timeCostForItem } from '@/lib/timeCostForItem'
+import { EmptyState } from '@/components/ui/empty-state'
 import type { TimeCostInput } from '@/types'
 
 interface CoolingItem {
@@ -33,10 +34,10 @@ export function CoolingGrid({ items, timeCostContext }: Props) {
 
   if (items.length === 0) {
     return (
-      <div className="rounded-[20px] bg-card py-12 px-5 text-center shadow-[0_1px_2px_rgba(31,42,46,0.04),0_4px_16px_rgba(31,42,46,0.04)]">
-        <p className="text-[15px] font-semibold text-foreground">Nothing cooling.</p>
-        <p className="text-[13px] text-[var(--text-muted)] mt-1">Use the top bar to log a temptation.</p>
-      </div>
+      <EmptyState
+        title="Nothing cooling."
+        subtitle="Use the top bar to log a temptation."
+      />
     )
   }
 

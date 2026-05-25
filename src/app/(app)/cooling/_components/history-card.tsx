@@ -1,5 +1,6 @@
 import { Check, ShoppingBag } from 'lucide-react'
 import { fmtRM } from '@/lib/formatters'
+import { cn } from '@/lib/utils'
 
 interface HistoryItem {
   id: string
@@ -21,24 +22,32 @@ function relativeDate(date: Date): string {
 export function HistoryCard({ item }: { item: HistoryItem }) {
   const isSkipped = item.status === 'SKIPPED'
   const Icon = isSkipped ? Check : ShoppingBag
-  const iconClass = isSkipped
-    ? 'bg-[var(--gold-tint)] text-[var(--gold-deep)]'
-    : 'bg-[var(--coral-tint)] text-[var(--coral-deep)]'
 
   return (
-    <div className="rounded-[16px] bg-card p-4 shadow-[0_1px_2px_rgba(31,42,46,0.04),0_4px_16px_rgba(31,42,46,0.04)] flex items-center gap-3">
-      <div className={`w-10 h-10 rounded-[10px] flex items-center justify-center flex-shrink-0 ${iconClass}`}>
+    <div className="flex items-center gap-3 rounded-xl bg-card p-4 shadow-card">
+      <div
+        className={cn(
+          'flex-shrink-0 w-10 h-10 rounded-sm flex items-center justify-center',
+          isSkipped ? 'bg-gold-tint text-gold-deep' : 'bg-coral-tint text-coral-deep',
+        )}
+      >
         <Icon size={16} strokeWidth={2} />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-[14px] font-semibold text-foreground truncate">{item.title}</p>
-        <p className="text-[12px] text-[var(--text-muted)] mt-0.5">
+        <p className="text-sm font-semibold text-foreground truncate">{item.title}</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
           {isSkipped ? 'Skipped' : 'Bought'}
           {item.resolvedAt && ` · ${relativeDate(item.resolvedAt)}`}
         </p>
       </div>
-      <span className={`text-[15px] font-semibold tabular-nums flex-shrink-0 ${isSkipped ? 'text-primary' : 'text-foreground'}`}>
-        {isSkipped ? '+' : ''}{fmtRM(item.amountCents, 0)}
+      <span
+        className={cn(
+          'flex-shrink-0 text-sm font-semibold tabular-nums',
+          isSkipped ? 'text-primary' : 'text-foreground',
+        )}
+      >
+        {isSkipped ? '+' : ''}
+        {fmtRM(item.amountCents, 0)}
       </span>
     </div>
   )

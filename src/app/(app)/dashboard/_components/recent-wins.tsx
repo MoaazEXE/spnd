@@ -1,10 +1,13 @@
 'use client'
 
-import { useTransition, useState } from 'react'
+import { useState, useTransition } from 'react'
 import { X, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 import { editWin } from '@/app/actions/items'
 import { fmtRM } from '@/lib/formatters'
+import { Card } from '@/components/ui/card'
+import { ErrorBanner } from '@/components/ui/error-banner'
+import { cn } from '@/lib/utils'
 
 interface WinItem {
   id: string
@@ -34,7 +37,13 @@ function relativeTime(date: Date): string {
 function CheckIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M5 12l4.5 4.5L19 7" stroke="#A8893E" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M5 12l4.5 4.5L19 7"
+        stroke="var(--gold-deep)"
+        strokeWidth="2.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   )
 }
@@ -42,8 +51,8 @@ function CheckIcon() {
 function BagIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M5 8h14l-1 12H6L5 8z" stroke="#8C3A2E" strokeWidth="1.8" strokeLinejoin="round" />
-      <path d="M9 8V6a3 3 0 016 0v2" stroke="#8C3A2E" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M5 8h14l-1 12H6L5 8z" stroke="var(--coral-deep)" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M9 8V6a3 3 0 016 0v2" stroke="var(--coral-deep)" strokeWidth="1.8" strokeLinecap="round" />
     </svg>
   )
 }
@@ -80,35 +89,38 @@ function EditSheet({ item, onClose }: { item: WinItem; onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end">
-      <div className="absolute inset-0 bg-[rgba(31,42,46,0.4)]" onClick={onClose} />
+      <div className="absolute inset-0 bg-foreground/40" onClick={onClose} />
 
-      <div className="relative bg-background rounded-t-[28px] animate-sheet-up">
-        {/* Handle */}
+      <div className="relative bg-background rounded-t-3xl animate-sheet-up">
         <div className="flex justify-center pt-3 pb-1">
           <div className="w-10 h-1 rounded-full bg-border" />
         </div>
 
-        {/* Header */}
         <div className="flex items-center px-5 py-3">
           <button
             onClick={onClose}
             className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted transition-colors"
+            aria-label="Close"
           >
             <X size={18} strokeWidth={2} className="text-muted-foreground" />
           </button>
-          <h2 className="flex-1 text-center text-[16px] font-semibold tracking-[-0.2px]">Edit entry</h2>
+          <h2 className="flex-1 text-center text-base font-semibold tracking-tight">Edit entry</h2>
           <div className="w-9" />
         </div>
 
         <div className="px-5 pb-8 space-y-4">
-          {/* Title */}
-          <p className="text-center text-[20px] font-bold text-foreground tracking-[-0.4px] pt-1">{item.title}</p>
+          <p className="pt-1 text-center text-xl font-bold tracking-tight text-foreground">
+            {item.title}
+          </p>
 
-          {/* Amount */}
-          <div className="bg-card rounded-[20px] px-5 py-5 text-center shadow-[0_1px_2px_rgba(31,42,46,0.04),0_4px_16px_rgba(31,42,46,0.04)]">
-            <p className="text-[12px] font-semibold uppercase tracking-[0.4px] text-[var(--text-muted)] mb-2">Amount</p>
+          <Card className="text-center">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Amount
+            </p>
             <div className="flex items-baseline justify-center gap-1">
-              <span className="text-[24px] font-semibold text-[var(--text-muted)] tracking-[-0.4px]">RM</span>
+              <span className="text-2xl font-semibold text-muted-foreground tracking-tight">
+                RM
+              </span>
               <input
                 type="number"
                 inputMode="decimal"
@@ -117,64 +129,101 @@ function EditSheet({ item, onClose }: { item: WinItem; onClose: () => void }) {
                 required
                 value={amount}
                 onChange={e => setAmount(e.target.value)}
-                className="w-36 text-[44px] font-bold text-foreground tabular-nums bg-transparent border-none outline-none text-center placeholder:text-muted-foreground/40 tracking-[-1.5px]"
+                className="w-36 text-center text-5xl font-bold text-foreground tabular-nums tracking-tight bg-transparent border-none outline-none placeholder:text-muted-foreground/40"
               />
             </div>
-          </div>
+          </Card>
 
-          {/* Outcome toggle */}
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.4px] text-muted-foreground mb-2">What actually happened?</p>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              What actually happened?
+            </p>
             <div className="flex gap-2">
-              <button
-                type="button"
+              <OutcomeButton
+                active={outcome === 'SKIPPED'}
                 onClick={() => setOutcome('SKIPPED')}
-                className={[
-                  'flex-1 h-[52px] rounded-[14px] text-[14px] font-semibold transition-all flex items-center justify-center gap-2',
-                  outcome === 'SKIPPED'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-card border border-border text-foreground hover:bg-muted',
-                ].join(' ')}
+                tone="saved"
               >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path d="M5 12l4.5 4.5L19 7" stroke={outcome === 'SKIPPED' ? '#fff' : '#A8893E'} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
                 Saved it
-              </button>
-              <button
-                type="button"
+              </OutcomeButton>
+              <OutcomeButton
+                active={outcome === 'BOUGHT'}
                 onClick={() => setOutcome('BOUGHT')}
-                className={[
-                  'flex-1 h-[52px] rounded-[14px] text-[14px] font-semibold transition-all flex items-center justify-center gap-2',
-                  outcome === 'BOUGHT'
-                    ? 'bg-[var(--coral-tint)] text-[var(--coral-deep)] border border-[var(--coral-deep)]/20'
-                    : 'bg-card border border-border text-foreground hover:bg-muted',
-                ].join(' ')}
+                tone="bought"
               >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path d="M5 8h14l-1 12H6L5 8z" stroke={outcome === 'BOUGHT' ? '#8C3A2E' : '#6B7A7E'} strokeWidth="1.8" strokeLinejoin="round" />
-                  <path d="M9 8V6a3 3 0 016 0v2" stroke={outcome === 'BOUGHT' ? '#8C3A2E' : '#6B7A7E'} strokeWidth="1.8" strokeLinecap="round" />
-                </svg>
                 Bought it
-              </button>
+              </OutcomeButton>
             </div>
           </div>
 
-          {fieldError && (
-            <p className="text-[13px] text-destructive bg-destructive/10 px-3 py-2 rounded-[10px]">{fieldError}</p>
-          )}
+          <ErrorBanner message={fieldError} />
 
           <button
             type="button"
             onClick={handleSave}
             disabled={isPending}
-            className="w-full h-[56px] rounded-[16px] bg-primary text-primary-foreground text-[16px] font-semibold transition-all active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
+            className="w-full h-14 rounded-xl bg-primary text-primary-foreground text-base font-semibold transition-all active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {isPending ? 'Saving…' : 'Save changes'}
           </button>
         </div>
       </div>
     </div>
+  )
+}
+
+function OutcomeButton({
+  active,
+  onClick,
+  tone,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  tone: 'saved' | 'bought'
+  children: React.ReactNode
+}) {
+  const activeClass =
+    tone === 'saved'
+      ? 'bg-primary text-primary-foreground'
+      : 'bg-coral-tint text-coral-deep border border-coral-deep/20'
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'flex-1 h-13 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-2',
+        active ? activeClass : 'bg-card border border-border text-foreground hover:bg-muted',
+      )}
+    >
+      {tone === 'saved' ? (
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path
+            d="M5 12l4.5 4.5L19 7"
+            stroke={active ? 'currentColor' : 'var(--gold-deep)'}
+            strokeWidth="2.4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      ) : (
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path
+            d="M5 8h14l-1 12H6L5 8z"
+            stroke={active ? 'currentColor' : 'var(--text-muted)'}
+            strokeWidth="1.8"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M9 8V6a3 3 0 016 0v2"
+            stroke={active ? 'currentColor' : 'var(--text-muted)'}
+            strokeWidth="1.8"
+            strokeLinecap="round"
+          />
+        </svg>
+      )}
+      {children}
+    </button>
   )
 }
 
@@ -191,50 +240,59 @@ export function RecentWins({ skippedItems, boughtItems, maxItems = 3 }: Props) {
     <section>
       {editItem && <EditSheet item={editItem} onClose={() => setEditItem(null)} />}
 
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-[13px] font-semibold uppercase tracking-[0.2px] text-[var(--text-muted)]">
+      <div className="mb-3 flex items-center justify-between">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Recent activity
         </p>
       </div>
 
-      <div className="bg-card rounded-[20px] shadow-[0_1px_2px_rgba(31,42,46,0.04),0_4px_16px_rgba(31,42,46,0.04)] overflow-hidden">
+      <Card padding="none" className="overflow-hidden">
         {allItems.map((item, i) => {
           const isSaved = item.status === 'SKIPPED'
+          const isLast = i === allItems.length - 1
           return (
             <button
               key={item.id}
               type="button"
               onClick={() => setEditItem(item)}
-              className="w-full flex items-center gap-3.5 px-[18px] py-3.5 transition-colors hover:bg-[var(--primary-tint)]/30 active:bg-[var(--primary-tint)]/50 text-left"
-              style={{ borderBottom: i < allItems.length - 1 ? '1px solid rgba(31,42,46,0.07)' : 'none' }}
+              className={cn(
+                'w-full flex items-center gap-3.5 px-[18px] py-3.5 text-left transition-colors hover:bg-primary-tint/30 active:bg-primary-tint/50',
+                !isLast && 'border-b border-sep',
+              )}
             >
-              <div className={[
-                'w-9 h-9 rounded-[10px] flex items-center justify-center flex-shrink-0',
-                isSaved ? 'bg-[var(--gold-tint)]' : 'bg-[var(--coral-tint)]',
-              ].join(' ')}>
+              <div
+                className={cn(
+                  'flex-shrink-0 w-9 h-9 rounded-sm flex items-center justify-center',
+                  isSaved ? 'bg-gold-tint' : 'bg-coral-tint',
+                )}
+              >
                 {isSaved ? <CheckIcon /> : <BagIcon />}
               </div>
 
               <div className="flex-1 min-w-0">
-                <p className="text-[15px] font-semibold text-foreground truncate">{item.title}</p>
-                <p className="text-[12px] text-[var(--text-muted)] mt-0.5">
-                  {isSaved ? 'Saved' : 'Bought'} · {item.resolvedAt ? relativeTime(item.resolvedAt) : ''}
+                <p className="text-sm font-semibold text-foreground truncate">{item.title}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {isSaved ? 'Saved' : 'Bought'}
+                  {item.resolvedAt && ` · ${relativeTime(item.resolvedAt)}`}
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <span className={[
-                  'text-[15px] font-semibold tabular-nums',
-                  isSaved ? 'text-primary' : 'text-[var(--coral-deep)]',
-                ].join(' ')}>
-                  {isSaved ? '+' : ''}{fmtRM(item.amountCents, 0)}
+              <div className="flex-shrink-0 flex items-center gap-2">
+                <span
+                  className={cn(
+                    'text-sm font-semibold tabular-nums',
+                    isSaved ? 'text-primary' : 'text-coral-deep',
+                  )}
+                >
+                  {isSaved ? '+' : ''}
+                  {fmtRM(item.amountCents, 0)}
                 </span>
-                <Pencil size={13} className="text-[var(--text-subtle)]" />
+                <Pencil size={13} className="text-subtle-foreground" />
               </div>
             </button>
           )
         })}
-      </div>
+      </Card>
     </section>
   )
 }

@@ -1,17 +1,21 @@
-import type { User } from '@supabase/supabase-js'
 import { prisma } from '@/lib/prisma'
+
+interface MinimalAuthUser {
+  id: string
+  email?: string | null
+  user_metadata?: Record<string, unknown> | null
+}
 
 /**
  * Upsert a User row using the Supabase auth UUID as the primary key.
- * Called after every successful auth event (sign-up, sign-in, OAuth callback).
- * The DB trigger handles this for email-confirmation flows, but we call it
- * explicitly here as a reliable fallback for all other paths.
+ * Called after auth events and on first write per session as a reliable fallback.
  */
-export async function ensureUserRecord(user: User): Promise<void> {
-  const name =
-    typeof user.user_metadata?.name === 'string'
-      ? user.user_metadata.name
-      : user.email?.split('@')[0] ?? 'User'
+export async function ensureUserRecord(user: MinimalAuthUser): Promise<void> {
+  const metadataName =
+    user.user_metadata && typeof user.user_metadata.name === 'string'
+      ? (user.user_metadata.name as string)
+      : null
+  const name = metadataName ?? user.email?.split('@')[0] ?? 'User'
 
   try {
     await prisma.user.upsert({
@@ -19,8 +23,9 @@ export async function ensureUserRecord(user: User): Promise<void> {
       update: {},
       create: { id: user.id, name, email: user.email ?? '' },
     })
-  } catch (e: any) {
-    if (e?.code === 'P2002') {
+  } catch (e) {
+    const code = (e as { code?: string })?.code
+    if (code === 'P2002') {
       // Email exists under a different auth UUID (e.g. email signup → Google OAuth).
       // Replace the stale row; Item.onDelete:Cascade cleans up orphaned items.
       await prisma.user.deleteMany({ where: { email: user.email ?? '' } })
