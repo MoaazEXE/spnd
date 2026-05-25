@@ -2,8 +2,8 @@
 
 import { useActionState, useEffect, useRef, useState, useTransition } from 'react'
 import { toast } from 'sonner'
-import { Trash2, Scale } from 'lucide-react'
-import { editExpense, deleteExpense, resplitExpense } from '@/app/actions/groups'
+import { Trash2 } from 'lucide-react'
+import { editExpense, deleteExpense } from '@/app/actions/groups'
 import { Card } from '@/components/ui/card'
 import { ErrorBanner } from '@/components/ui/error-banner'
 import { SheetFrame } from '@/components/ui/sheet-frame'
@@ -34,7 +34,6 @@ export function EditExpenseSheet({
   const [description, setDescription] = useState(initialDescription)
   const [amountCents, setAmountCents] = useState(initialAmountCents)
   const [resplit, setResplit] = useState(false)
-  const [isResplitting, startResplit] = useTransition()
   const [isDeleting, startDelete] = useTransition()
   const wasPending = useRef(false)
 
@@ -50,16 +49,6 @@ export function EditExpenseSheet({
   const perPersonCents =
     shareCountActive > 0 ? Math.floor(amountCents / shareCountActive) : 0
   const canSubmit = description.trim().length > 0 && amountCents > 0
-
-  function doResplitOnly() {
-    const fd = new FormData()
-    fd.set('expenseId', expenseId)
-    startResplit(async () => {
-      await resplitExpense(fd)
-      toast.success('Re-split across all current members')
-      onClose()
-    })
-  }
 
   function doDelete() {
     if (!confirm('Delete this activity? Balances will adjust automatically.')) return
@@ -198,16 +187,6 @@ export function EditExpenseSheet({
               </span>
             </span>
           </label>
-
-          <button
-            type="button"
-            onClick={doResplitOnly}
-            disabled={isResplitting}
-            className="w-full h-12 rounded-lg bg-gold-tint text-gold-deep text-sm font-semibold inline-flex items-center justify-center gap-2 hover:opacity-90 transition-opacity active:scale-[0.97] disabled:opacity-50"
-          >
-            <Scale size={16} strokeWidth={1.8} />
-            {isResplitting ? 'Re-splitting…' : 'Just re-split (keep amount)'}
-          </button>
 
           <button
             type="button"
