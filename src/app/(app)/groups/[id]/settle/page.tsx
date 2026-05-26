@@ -17,13 +17,16 @@ export default async function SettlePage({ params }: PageProps) {
   if (!group) notFound()
 
   const nameById = new Map(group.members.map(m => [m.userId, m.user.name]))
+  const avatarById = new Map(group.members.map(m => [m.userId, m.user.avatarUrl]))
   const labelFor = (uid: string) => (uid === ctx.id ? 'You' : nameById.get(uid) ?? 'Member')
 
   const plan: PlanRow[] = settlementPlan(group.expenses).map(p => ({
     fromId: p.from,
     fromLabel: labelFor(p.from),
+    fromAvatarUrl: avatarById.get(p.from) ?? null,
     toId: p.to,
     toLabel: labelFor(p.to),
+    toAvatarUrl: avatarById.get(p.to) ?? null,
     amountCents: p.amountCents,
     involvesYou: p.from === ctx.id || p.to === ctx.id,
     youArePayer: p.from === ctx.id,

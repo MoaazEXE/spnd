@@ -23,12 +23,50 @@ export async function updateProfile(
 
     const name = getRequiredString(formData, 'name')
     if (name.length > 60) throw new ValidationError('Name is too long (60 max).')
-    await usersRepo.updateName(user.id, name)
-  })
+
+    const { createClient } = await import('@/lib/supabase/server')
+    const supabase = await createClient()
+
+    // Avatar upload — stored in Supabase Storage bucket "avatars"
+    const avatarFile = formData.get('avatar')
+    let avatarUrl: string | undefined
+    if (avatarFile instanceof File && avatarFile.size > 0) {
+      if (avatarFile.size > 2 * 1024 * 1024) throw new ValidationError('Avatar must be under 2 MB.')
+      const ext = avatarFile.name.split('.').pop() ?? 'jpg'
+      const path = `${user.id}/avatar.${ext}`
+      const { error } = await supabase.storage
+        .from('avatars')
+        .upload(path, avatarFile, { upsert: true, contentType: avatarFile.type })
+      if (!error) {
+        const { data } = supabase.storage.from('avatars').getPublicUrl(path)
+        avatarUrl = data.publicUrl
+      }
+    }
+
+    // Update Prisma row and Supabase user_metadata in parallel.
+    // getUserContext reads name from user_metadata, so both must be in sync.
+    await Promise.all([
+      usersRepo.updateProfile(user.id, { name, ...(avatarUrl && { avatarUrl }) }),
+      supabase.auth.updateUser({ data: { name } }),
+    ])
+  }, 'action:updateProfile')
 
   revalidatePath('/profile')
   revalidatePath('/dashboard')
   return typeof result === 'string' ? result : null
+}
+
+export async function updateNotificationPrefs(formData: FormData): Promise<void> {
+  const user = await getCurrentUser()
+  if (!user) return
+
+  await usersRepo.updateNotificationPrefs(user.id, {
+    notifyCoolingReady: formData.get('notifyCoolingReady') === '1',
+    notifyGroupActivity: formData.get('notifyGroupActivity') === '1',
+    notifyMilestoneUnlocked: formData.get('notifyMilestoneUnlocked') === '1',
+  })
+
+  revalidatePath('/profile')
 }
 
 export async function saveIncomeSettings(

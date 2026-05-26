@@ -89,10 +89,10 @@ export function GroupDetailShell({
           {members.map((m, i) => (
             <div
               key={m.id}
-              className="rounded-full shadow-[0_0_0_3px_var(--card)]"
+              className="rounded-full shadow-avatar-ring-lg"
               style={{ marginLeft: i > 0 ? -8 : 0 }}
             >
-              <Avatar name={m.name} size={28} />
+              <Avatar name={m.name} src={m.avatarUrl} size={28} />
             </div>
           ))}
         </div>
@@ -196,6 +196,7 @@ export function GroupDetailShell({
           members={members.map(m => ({
             id: m.id,
             name: m.name,
+            avatarUrl: m.avatarUrl,
             isYou: m.id === currentUserId,
           }))}
           onClose={() => setAdding(false)}

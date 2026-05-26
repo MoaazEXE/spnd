@@ -71,3 +71,34 @@ export async function signOut() {
   await supabase.auth.signOut()
   redirect('/login')
 }
+
+export async function deleteAccount(): Promise<string | null> {
+  try {
+    const { verifyAuthUser } = await import('@/lib/supabase/server')
+    const user = await verifyAuthUser()
+    if (!user) return 'Not authenticated.'
+
+    const { prisma } = await import('@/lib/prisma')
+    await prisma.user.delete({ where: { id: user.id } })
+
+    // Delete from Supabase Auth via service-role client
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (serviceKey) {
+      const { createClient: createAdminClient } = await import('@supabase/supabase-js')
+      const admin = createAdminClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        serviceKey,
+      )
+      await admin.auth.admin.deleteUser(user.id)
+    }
+
+    const supabase = await createClient()
+    await supabase.auth.signOut()
+  } catch (err) {
+    const { logError } = await import('@/lib/log-error')
+    await logError('action:deleteAccount', {}, err)
+    return 'Failed to delete account. Please try again.'
+  }
+
+  redirect('/')
+}

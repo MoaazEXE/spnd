@@ -19,15 +19,29 @@ function colorFor(name: string): string {
 
 interface Props {
   name: string
+  src?: string | null
   size?: number
   shape?: 'circle' | 'square'
   className?: string
 }
 
-export function Avatar({ name, size = 32, shape = 'circle', className }: Props) {
+export function Avatar({ name, src, size = 32, shape = 'circle', className }: Props) {
   const initial = (name.trim().charAt(0) || '?').toUpperCase()
   const bg = colorFor(name)
   const borderRadius = shape === 'circle' ? 9999 : 14
+
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt={name}
+        className={cn('inline-block object-cover', className)}
+        style={{ width: size, height: size, borderRadius }}
+        aria-hidden="true"
+      />
+    )
+  }
+
   return (
     <div
       className={cn(

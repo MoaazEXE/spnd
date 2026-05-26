@@ -192,6 +192,24 @@
   --font-heading: var(--font-sans);
   --font-display: var(--font-fraunces, Georgia, serif);
 
+  /* Font sizes — supplement Tailwind defaults for design-specific sizes */
+  --font-size-label: 0.8125rem;      /* 13px — secondary labels, list titles */
+  --font-size-body-lg: 0.9375rem;    /* 15px — prominent body text */
+  --font-size-display-sm: 1.375rem;  /* 22px — small display numbers */
+  --font-size-display-md: 1.75rem;   /* 28px — medium display numbers */
+  --font-size-display-lg: 2rem;      /* 32px — large stat numbers */
+  --font-size-display-xl: 3.25rem;   /* 52px — hero headings desktop */
+  --font-size-display-2xl: 4rem;     /* 64px — hero avatar initial desktop */
+
+  /* Colors — supplemental tokens not covered by the palette above */
+  --color-online: #7AB87E;           /* green presence dot */
+
+  /* Shadows — supplemental to the named shadow set */
+  --shadow-avatar-ring: 0 0 0 2px var(--card);
+  --shadow-avatar-ring-lg: 0 0 0 3px var(--card);
+  --shadow-avatar-hero: 0 0 0 6px rgba(255,255,255,0.08), 0 20px 50px rgba(0,0,0,0.25);
+  --shadow-fab: 0 6px 20px rgba(45,95,91,0.32);
+
   /* Radius — covers cards (20px), sheets (24px), pills, chips */
   --radius-xs: 0.5rem;            /* 8px  — pills, small chips */
   --radius-sm: 0.625rem;          /* 10px — small buttons, tabs */
@@ -210,6 +228,22 @@
   --shadow-sheet: var(--shadow-sheet);
   --shadow-tooltip: var(--shadow-tooltip);
   --shadow-active-inset: var(--shadow-active-inset);
+  --shadow-avatar-ring: var(--shadow-avatar-ring);
+  --shadow-avatar-ring-lg: var(--shadow-avatar-ring-lg);
+  --shadow-avatar-hero: var(--shadow-avatar-hero);
+  --shadow-fab: var(--shadow-fab);
+
+  /* Font sizes */
+  --font-size-label: var(--font-size-label);
+  --font-size-body-lg: var(--font-size-body-lg);
+  --font-size-display-sm: var(--font-size-display-sm);
+  --font-size-display-md: var(--font-size-display-md);
+  --font-size-display-lg: var(--font-size-display-lg);
+  --font-size-display-xl: var(--font-size-display-xl);
+  --font-size-display-2xl: var(--font-size-display-2xl);
+
+  /* Supplemental colors */
+  --color-online: var(--color-online);
 }
 
 @layer base {

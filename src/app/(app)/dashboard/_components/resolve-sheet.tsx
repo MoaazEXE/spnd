@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useTransition, useState } from 'react'
 import { toast } from 'sonner'
 import { resolveItem, snoozeItem, editCoolingItem } from '@/app/actions/items'
+import { CATEGORIES } from '@/core/categories/categories'
 import { fmtRM } from '@/lib/formatters'
 import { SheetFrame } from '@/components/ui/sheet-frame'
 import { ErrorBanner } from '@/components/ui/error-banner'
@@ -28,6 +29,7 @@ interface ResolveItem {
   id: string
   title: string
   amountCents: number
+  category?: string | null
   timeCostFormatted?: string
 }
 
@@ -181,6 +183,7 @@ function EditCoolingForm({
 }) {
   const [error, action, isPending] = useActionState(editCoolingItem, null)
   const [title, setTitle] = useState(item.title)
+  const [category, setCategory] = useState(item.category ?? 'other')
   const [selectedPreset, setSelectedPreset] = useState(3)
   const [isCustom, setIsCustom] = useState(false)
   const wasPending = useRef(false)
@@ -199,6 +202,7 @@ function EditCoolingForm({
   return (
     <form action={action} className="px-5 pb-8 space-y-5">
       <input type="hidden" name="id" value={item.id} />
+      <input type="hidden" name="category" value={category} />
 
       <div className="space-y-2">
         <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -230,6 +234,29 @@ function EditCoolingForm({
             defaultValue={item.amountCents / 100}
             className="flex-1 h-full text-sm font-semibold text-foreground bg-transparent border-none outline-none"
           />
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Category
+        </label>
+        <div className="flex flex-wrap gap-1.5">
+          {CATEGORIES.map(cat => (
+            <button
+              key={cat.id}
+              type="button"
+              onClick={() => setCategory(cat.id)}
+              className={cn(
+                'h-9 px-3 rounded-lg text-sm font-semibold transition-colors',
+                category === cat.id
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-card border border-border text-foreground hover:bg-muted',
+              )}
+            >
+              {cat.label}
+            </button>
+          ))}
         </div>
       </div>
 

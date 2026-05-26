@@ -42,7 +42,7 @@ export async function createGroup(
     const userId = await getAuthUserId()
     const group = await groupsRepo.create({ name, createdBy: userId })
     newId = group.id
-  })
+  }, 'action:createGroup')
 
   if (typeof result === 'string') return result
   revalidatePath('/groups')

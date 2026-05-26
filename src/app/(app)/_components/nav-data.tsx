@@ -23,6 +23,7 @@ export async function NavData() {
       name={ctx.name}
       email={ctx.email}
       initial={ctx.initial}
+      avatarUrl={ctx.avatarUrl}
       savedCents={savedAgg}
       coolingCount={coolingCount}
       groupsCount={groupsCount}

@@ -9,7 +9,6 @@ import { ErrorBanner } from '@/components/ui/error-banner'
 import { SubmitButton } from '@/components/ui/submit-button'
 import { GoogleSignInButton } from '@/components/ui/google-sign-in-button'
 import { AuthHero } from '../_components/auth-hero'
-import { PreviewCard } from '../_components/preview-card'
 
 export default function LoginPage() {
   const [error, action, isPending] = useActionState(signIn, null)
@@ -22,15 +21,10 @@ export default function LoginPage() {
           <>
             Pause before
             <br />
-            you buy. <span className="text-primary">Keep what&apos;s yours.</span>
+            you buy.
           </>
         }
-      />
-
-      <PreviewCard
-        label="Saved by waiting"
-        amount="RM 1,247.50"
-        hint="42 hours of your life"
+        description="Sign in to see what you've saved."
       />
 
       <GoogleSignInButton />

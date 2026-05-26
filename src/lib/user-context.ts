@@ -10,6 +10,7 @@ export interface UserContext {
   name: string
   email: string
   initial: string
+  avatarUrl: string | null
   defaultCoolingPeriod: string
   timeCostContext: TimeCostContext | null
 }
@@ -45,6 +46,7 @@ export const getUserContext = cache(async (): Promise<UserContext | null> => {
     name,
     email: authUser.email ?? '',
     initial: (name || '?').charAt(0).toUpperCase(),
+    avatarUrl: dbUser?.avatarUrl ?? null,
     defaultCoolingPeriod: dbUser?.defaultCoolingPeriod ?? '1d',
     timeCostContext,
   }

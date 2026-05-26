@@ -8,7 +8,7 @@ export interface GroupSummary {
   id: string
   name: string
   memberCount: number
-  members: { id: string; name: string }[]
+  members: { id: string; name: string; avatarUrl: string | null }[]
   youOweCents: number
   savedTogetherCents: number
 }
@@ -41,7 +41,7 @@ export default async function GroupsPage() {
       id: g.id,
       name: g.name,
       memberCount: g.members.length,
-      members: g.members.map(m => ({ id: m.user.id, name: m.user.name })),
+      members: g.members.map(m => ({ id: m.user.id, name: m.user.name, avatarUrl: m.user.avatarUrl })),
       youOweCents: balances.get(ctx.id) ?? 0,
       savedTogetherCents,
     }

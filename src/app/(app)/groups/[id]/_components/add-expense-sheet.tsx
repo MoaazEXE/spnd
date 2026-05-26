@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils'
 interface MemberOption {
   id: string
   name: string
+  avatarUrl: string | null
   isYou: boolean
 }
 
@@ -182,7 +183,7 @@ export function AddExpenseSheet({ groupId, members, onClose }: Props) {
                       : 'border-border bg-card hover:bg-muted',
                   )}
                 >
-                  <Avatar name={m.name} size={28} />
+                  <Avatar name={m.name} src={m.avatarUrl} size={28} />
                   <span className="flex-1 min-w-0 text-sm font-semibold text-foreground truncate">
                     {m.name}
                   </span>

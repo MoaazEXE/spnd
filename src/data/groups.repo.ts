@@ -5,14 +5,14 @@ const groupInclude = {
   members: {
     where: { status: 'ACTIVE' as const },
     orderBy: { joinedAt: 'asc' as const },
-    include: { user: { select: { id: true, name: true, email: true } } },
+    include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
   },
   expenses: {
     where: { status: 'COMMITTED' as const },
     orderBy: { createdAt: 'desc' as const },
     include: {
       shares: true,
-      payer: { select: { id: true, name: true } },
+      payer: { select: { id: true, name: true, avatarUrl: true } },
     },
   },
   items: {

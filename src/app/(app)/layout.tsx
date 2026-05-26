@@ -1,4 +1,5 @@
 import { Suspense } from 'react'
+import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/supabase/server'
 import { LogModalProvider } from './_components/log-modal-context'
 import { ResolveSheetProvider } from './_components/resolve-sheet-context'
@@ -17,13 +18,7 @@ import { LogFab } from './_components/log-fab'
  */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser()
-  if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-muted-foreground">
-        Loading…
-      </div>
-    )
-  }
+  if (!user) redirect('/login')
 
   const initial =
     typeof user.user_metadata?.name === 'string'

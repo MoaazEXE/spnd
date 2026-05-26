@@ -41,16 +41,20 @@ enum TimeCostMode {
 }
 
 model User {
-  id                   String       @id  // set to Supabase auth UUID on create — enables RLS
-  name                 String
-  email                String       @unique
-  monthlyIncomeCents   Int?
-  workingHoursPerWeek  Float?
-  commuteHours         Float?
-  workCostsCents       Int?
-  timeCostMode         TimeCostMode @default(SIMPLE)
-  defaultCoolingPeriod String       @default("1d")
-  createdAt            DateTime     @default(now())
+  id                      String       @id  // set to Supabase auth UUID on create — enables RLS
+  name                    String
+  email                   String       @unique
+  avatarUrl               String?
+  monthlyIncomeCents      Int?
+  workingHoursPerWeek     Float?
+  commuteHours            Float?
+  workCostsCents          Int?
+  timeCostMode            TimeCostMode @default(SIMPLE)
+  defaultCoolingPeriod    String       @default("1d")
+  notifyCoolingReady      Boolean      @default(true)
+  notifyGroupActivity     Boolean      @default(true)
+  notifyMilestoneUnlocked Boolean      @default(true)
+  createdAt               DateTime     @default(now())
 
   items         Item[]
   groupsCreated Group[]
@@ -65,6 +69,7 @@ model Item {
   groupId      String?
   title        String
   amountCents  Int
+  category     String?
   note         String?
   photoUrl     String?
   linkUrl      String?

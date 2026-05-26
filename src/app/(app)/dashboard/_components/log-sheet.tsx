@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { logItem } from '@/app/actions/items'
 import { calculateTimeCost } from '@/core/timecost/timeCost'
+import { CATEGORIES } from '@/core/categories/categories'
 import { Card } from '@/components/ui/card'
 import { ErrorBanner } from '@/components/ui/error-banner'
 import { SheetFrame } from '@/components/ui/sheet-frame'
@@ -42,6 +43,7 @@ export function LogSheet({ onClose, defaultCoolingPeriod, timeCostContext }: Pro
   const [title, setTitle] = useState('')
   const [selectedPreset, setSelectedPreset] = useState(() => presetIndexForStored(defaultCoolingPeriod))
   const [isCustom, setIsCustom] = useState(false)
+  const [category, setCategory] = useState('other')
   const wasPending = useRef(false)
 
   useEffect(() => {
@@ -119,6 +121,28 @@ export function LogSheet({ onClose, defaultCoolingPeriod, timeCostContext }: Pro
             onChange={e => setTitle(e.target.value)}
             className={INPUT}
           />
+        </div>
+
+        <div className="space-y-2">
+          <label className={LABEL}>Category</label>
+          <input type="hidden" name="category" value={category} />
+          <div className="flex flex-wrap gap-2">
+            {CATEGORIES.map(cat => (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => setCategory(cat.id)}
+                className={cn(
+                  'h-9 px-3 rounded-lg text-sm font-semibold transition-colors',
+                  category === cat.id
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-card border border-border text-foreground hover:bg-muted',
+                )}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="space-y-2">

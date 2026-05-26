@@ -6,6 +6,7 @@ import { HeroRow } from './_components/sections/hero-row'
 import { CoolingSection } from './_components/sections/cooling-section'
 import { BottomRow } from './_components/sections/bottom-row'
 import { ReviewPillSection } from './_components/sections/review-pill-section'
+import { NextMilestoneSection } from './_components/sections/next-milestone-section'
 import {
   HeroRowSkeleton,
   CoolingSectionSkeleton,
@@ -31,6 +32,10 @@ export default async function DashboardPage() {
           <ReviewPillSection userId={ctx.id} />
         </Suspense>
       </div>
+
+      <Suspense fallback={null}>
+        <NextMilestoneSection userId={ctx.id} />
+      </Suspense>
 
       <Suspense fallback={<HeroRowSkeleton />}>
         <HeroRow userId={ctx.id} timeCostContext={ctx.timeCostContext} />

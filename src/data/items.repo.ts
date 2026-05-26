@@ -64,6 +64,7 @@ export const itemsRepo = {
         amountCents: true,
         coolingUntil: true,
         createdAt: true,
+        category: true,
       },
     }),
   ),
@@ -86,15 +87,16 @@ export const itemsRepo = {
     amountCents: number
     coolingUntil: Date
     note?: string
+    category?: string
   }) {
     return prisma.item.create({ data })
   },
 
-  async updateResolved(id: string, userId: string, data: { title?: string; amountCents: number; status: 'BOUGHT' | 'SKIPPED' }) {
+  async updateResolved(id: string, userId: string, data: { title?: string; amountCents: number; status: 'BOUGHT' | 'SKIPPED'; category?: string }) {
     return prisma.item.update({ where: { id, userId }, data })
   },
 
-  async updateCooling(id: string, userId: string, data: { title: string; amountCents: number; coolingUntil: Date }) {
+  async updateCooling(id: string, userId: string, data: { title: string; amountCents: number; coolingUntil: Date; category?: string }) {
     return prisma.item.update({ where: { id, userId }, data })
   },
 

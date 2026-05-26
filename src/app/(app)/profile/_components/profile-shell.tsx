@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import {
   ArrowLeft,
@@ -9,18 +9,20 @@ import {
   Users,
   ChevronRight,
   Pencil,
-  Award,
   Bell,
   Tag,
   Download,
   CalendarRange,
 } from 'lucide-react'
-import { signOut } from '@/app/actions/auth'
+import { signOut, deleteAccount } from '@/app/actions/auth'
+import { updateNotificationPrefs } from '@/app/actions/users'
 import { fmtRM } from '@/lib/formatters'
 import { Card } from '@/components/ui/card'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { MilestoneCard } from '@/components/milestones/milestone-card'
 import { cn } from '@/lib/utils'
 import { EditProfileSheet } from './edit-profile-sheet'
+import type { MilestoneResult } from '@/core/milestones/milestones'
 
 interface ActivityItem {
   id: string
@@ -30,10 +32,18 @@ interface ActivityItem {
   resolvedAt: Date
 }
 
+interface MostSkippedRow {
+  id: string
+  label: string
+  count: number
+  pct: number
+}
+
 interface Props {
   name: string
   email: string
   initial: string
+  avatarUrl: string | null
   memberSince: Date
   savedCents: number
   skippedCount: number
@@ -41,10 +51,19 @@ interface Props {
   coolingCount: number
   skipRatePct: number
   groupsCount: number
+  streakDays: number
   biggestSaveCents: number
   biggestSaveTitle: string
   avgSaveCents: number
   lifeHours: number | null
+  milestones: MilestoneResult
+  mostSkipped: MostSkippedRow[]
+  quarterSavedCents: number
+  quarterSkippedCount: number
+  quarterVsPrevPct: number | null
+  notifyCoolingReady: boolean
+  notifyGroupActivity: boolean
+  notifyMilestoneUnlocked: boolean
   recentActivity: ActivityItem[]
 }
 
@@ -74,6 +93,7 @@ export function ProfileShell({
   name,
   email,
   initial,
+  avatarUrl,
   memberSince,
   savedCents,
   skippedCount,
@@ -81,14 +101,54 @@ export function ProfileShell({
   coolingCount,
   skipRatePct,
   groupsCount,
+  streakDays,
   biggestSaveCents,
   biggestSaveTitle,
   avgSaveCents,
   lifeHours,
+  milestones,
+  mostSkipped,
+  quarterSavedCents,
+  quarterSkippedCount,
+  quarterVsPrevPct,
+  notifyCoolingReady: initCooling,
+  notifyGroupActivity: initGroup,
+  notifyMilestoneUnlocked: initMilestone,
   recentActivity,
 }: Props) {
   const [editing, setEditing] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  // Notification toggles — optimistic local state, persisted via server action
+  const [notifyCooling, setNotifyCooling] = useState(initCooling)
+  const [notifyGroup, setNotifyGroup] = useState(initGroup)
+  const [notifyMilestone, setNotifyMilestone] = useState(initMilestone)
+  const [, startNotifTransition] = useTransition()
+
+  function saveNotifs(next: { cooling: boolean; group: boolean; milestone: boolean }) {
+    const fd = new FormData()
+    fd.set('notifyCoolingReady', next.cooling ? '1' : '0')
+    fd.set('notifyGroupActivity', next.group ? '1' : '0')
+    fd.set('notifyMilestoneUnlocked', next.milestone ? '1' : '0')
+    startNotifTransition(() => { updateNotificationPrefs(fd) })
+  }
+
+  function toggleCooling() {
+    const next = !notifyCooling
+    setNotifyCooling(next)
+    saveNotifs({ cooling: next, group: notifyGroup, milestone: notifyMilestone })
+  }
+  function toggleGroup() {
+    const next = !notifyGroup
+    setNotifyGroup(next)
+    saveNotifs({ cooling: notifyCooling, group: next, milestone: notifyMilestone })
+  }
+  function toggleMilestone() {
+    const next = !notifyMilestone
+    setNotifyMilestone(next)
+    saveNotifs({ cooling: notifyCooling, group: notifyGroup, milestone: next })
+  }
 
   return (
     <div className="pb-8 lg:pb-16">
@@ -118,10 +178,18 @@ export function ProfileShell({
 
             <div className="flex items-start gap-4 lg:gap-8">
               <div className="relative flex-shrink-0">
-                <div className="w-20 h-20 lg:w-[132px] lg:h-[132px] rounded-full bg-gradient-to-br from-gold to-gold-deep text-white flex items-center justify-center font-display text-4xl lg:text-[64px] font-medium shadow-[0_0_0_6px_rgba(255,255,255,0.08),_0_20px_50px_rgba(0,0,0,0.25)] tracking-tight">
-                  {initial}
-                </div>
-                <div className="absolute bottom-1 right-1 lg:bottom-2 lg:right-2 w-4 h-4 lg:w-[22px] lg:h-[22px] rounded-full bg-[#7AB87E] shadow-[0_0_0_3px_#1F4744] lg:shadow-[0_0_0_4px_#1F4744]" />
+                {avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt={name}
+                    className="w-20 h-20 lg:w-[132px] lg:h-[132px] rounded-full object-cover shadow-avatar-hero"
+                  />
+                ) : (
+                  <div className="w-20 h-20 lg:w-[132px] lg:h-[132px] rounded-full bg-gradient-to-br from-gold to-gold-deep text-white flex items-center justify-center font-display text-4xl lg:text-display-2xl font-medium shadow-avatar-hero tracking-tight">
+                    {initial}
+                  </div>
+                )}
+                <div className="absolute bottom-1 right-1 lg:bottom-2 lg:right-2 w-4 h-4 lg:w-[22px] lg:h-[22px] rounded-full bg-online shadow-[0_0_0_3px_var(--primary-deep)] lg:shadow-[0_0_0_4px_var(--primary-deep)]" />
               </div>
 
               <div className="flex-1 min-w-0 text-white">
@@ -129,15 +197,17 @@ export function ProfileShell({
                   Member since {fmtMemberSince(memberSince)}
                 </p>
                 <div className="flex items-baseline gap-2 lg:gap-3.5 mt-1.5 lg:mt-1 flex-wrap">
-                  <h1 className="font-display text-3xl lg:text-[52px] font-medium tracking-tight lg:tracking-[-1.8px] leading-tight">
+                  <h1 className="font-display text-3xl lg:text-display-xl font-medium tracking-tight lg:tracking-[-1.8px] leading-tight">
                     {name}
                   </h1>
-                  <span className="hidden lg:inline font-display italic text-xl lg:text-[28px] text-gold tracking-tight">
-                    · Patient one
-                  </span>
+                  {milestones.count > 0 && (
+                    <span className="hidden lg:inline font-display italic text-xl lg:text-display-md text-gold tracking-tight">
+                      · {milestones.count} milestone{milestones.count !== 1 ? 's' : ''} unlocked
+                    </span>
+                  )}
                 </div>
 
-                <div className="hidden lg:flex items-center gap-4 mt-4 text-[13px] text-white/65 flex-wrap">
+                <div className="hidden lg:flex items-center gap-4 mt-4 text-label text-white/65 flex-wrap">
                   <span className="inline-flex items-center gap-1.5">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                       <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" stroke="rgba(255,255,255,0.55)" strokeWidth="1.7" strokeLinecap="round" />
@@ -150,15 +220,22 @@ export function ProfileShell({
                     <Users size={14} strokeWidth={1.7} className="text-white/55" />
                     {groupsCount} {groupsCount === 1 ? 'group' : 'groups'}
                   </span>
+                  {streakDays > 0 && (
+                    <>
+                      <span className="w-[3px] h-[3px] rounded-full bg-white/30" />
+                      <span className="inline-flex items-center gap-1.5">
+                        🔥 {streakDays}-day streak
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
 
-              {/* Desktop actions */}
               <div className="hidden lg:flex flex-col gap-2.5 items-end">
                 <button
                   type="button"
                   onClick={() => setEditing(true)}
-                  className="h-11 px-[18px] rounded-xl bg-white/[0.14] backdrop-blur-sm text-white text-[13px] font-semibold inline-flex items-center gap-2 hover:bg-white/[0.22] transition-colors"
+                  className="h-11 px-[18px] rounded-xl bg-white/[0.14] backdrop-blur-sm text-white text-label font-semibold inline-flex items-center gap-2 hover:bg-white/[0.22] transition-colors"
                 >
                   <Pencil size={14} strokeWidth={1.8} />
                   Edit profile
@@ -166,7 +243,6 @@ export function ProfileShell({
               </div>
             </div>
 
-            {/* Mobile Edit profile button */}
             <button
               type="button"
               onClick={() => setEditing(true)}
@@ -180,12 +256,12 @@ export function ProfileShell({
 
         {/* ═══ STAT STRIP ═══ */}
         <div className="relative z-[2] mx-5 lg:mx-12 -mt-10 bg-card rounded-2xl shadow-pop overflow-hidden">
-          <div className="grid grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-2 lg:grid-cols-5">
             <StatCell
               label="Saved by waiting"
               value={
                 <>
-                  <span className="text-lg lg:text-[22px] text-primary tracking-tight">RM </span>
+                  <span className="text-lg lg:text-display-sm text-primary tracking-tight">RM </span>
                   {(savedCents / 100).toLocaleString('en-MY', { maximumFractionDigits: 0 })}
                 </>
               }
@@ -195,9 +271,16 @@ export function ProfileShell({
             <StatCell label="Items skipped" value={skippedCount} accent="text" border />
             <StatCell label="Skip rate" value={`${skipRatePct}%`} accent="text" border />
             <StatCell
+              label="Day streak"
+              value={streakDays > 0 ? `🔥 ${streakDays}` : '—'}
+              accent="gold"
+              border
+            />
+            <StatCell
               label="Hours reclaimed"
               value={lifeHours != null ? fmtHours(lifeHours) : '—'}
               accent="gold"
+              className="col-span-2 lg:col-span-1 border-t border-sep lg:border-t-0"
             />
           </div>
         </div>
@@ -206,7 +289,7 @@ export function ProfileShell({
       {/* ═══ MAIN CONTENT ═══ */}
       <div className="px-5 lg:px-12 pt-8 lg:pt-10">
         <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-6 lg:gap-8">
-          {/* LEFT COLUMN — Personal records + Milestones + Most skipped + This quarter */}
+          {/* LEFT COLUMN */}
           <div className="space-y-8">
             <section>
               <h2 className="mb-4 font-display text-2xl font-medium tracking-tight text-foreground">
@@ -235,11 +318,85 @@ export function ProfileShell({
               </Card>
             </section>
 
-            <MilestonesSection savedCents={savedCents} skippedCount={skippedCount} />
+            {/* Milestones — real data */}
+            <section>
+              <div className="flex items-baseline justify-between mb-4">
+                <h2 className="font-display text-2xl font-medium tracking-tight text-foreground">
+                  Milestones
+                  <span className="ml-2 text-sm font-normal text-muted-foreground">
+                    {milestones.count}/{milestones.total}
+                  </span>
+                </h2>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {milestones.all.map(m => (
+                  <MilestoneCard key={m.id} milestone={m} />
+                ))}
+              </div>
+            </section>
 
-            <MostSkippedSection />
+            {/* Most Skipped — real category data */}
+            <section>
+              <h2 className="mb-4 font-display text-2xl font-medium tracking-tight text-foreground">
+                Most skipped
+              </h2>
+              <Card padding="md">
+                {mostSkipped.length === 0 ? (
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-primary-tint text-primary-deep flex items-center justify-center flex-shrink-0">
+                      <Tag size={16} strokeWidth={1.8} />
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed pt-2">
+                      Skip some temptations to see your category breakdown here.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {mostSkipped.map(r => (
+                      <div key={r.id} className="space-y-1">
+                        <div className="flex items-baseline justify-between">
+                          <span className="text-label font-semibold text-foreground">{r.label}</span>
+                          <span className="text-[11px] tabular-nums text-muted-foreground">
+                            {r.count} item{r.count !== 1 ? 's' : ''} · {r.pct}%
+                          </span>
+                        </div>
+                        <div className="h-2 rounded-full bg-muted overflow-hidden">
+                          <div className="h-full bg-primary rounded-full" style={{ width: `${r.pct}%` }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            </section>
 
-            <ThisQuarterSection />
+            {/* This Quarter — real data */}
+            <section>
+              <h2 className="mb-4 font-display text-2xl font-medium tracking-tight text-foreground">
+                This quarter
+              </h2>
+              <Card padding="md">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-gold-tint text-gold-deep flex items-center justify-center flex-shrink-0">
+                    <CalendarRange size={16} strokeWidth={1.8} />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Your last 90 days at a glance.
+                    </p>
+                    <div className="mt-3 grid grid-cols-3 gap-3">
+                      <QuarterCell label="Saved" value={fmtRM(quarterSavedCents, 0)} tone="primary" />
+                      <QuarterCell label="Skipped" value={String(quarterSkippedCount)} tone="text" />
+                      <QuarterCell
+                        label="vs prev"
+                        value={quarterVsPrevPct !== null ? `${quarterVsPrevPct > 0 ? '+' : ''}${quarterVsPrevPct}%` : '—'}
+                        tone="gold"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            </section>
 
             <section className="lg:hidden">
               <Card padding="none">
@@ -260,7 +417,7 @@ export function ProfileShell({
             </section>
           </div>
 
-          {/* RIGHT COLUMN — Recent activity + Notifications + Data + Account */}
+          {/* RIGHT COLUMN */}
           <div className="space-y-8">
             <section>
               <div className="flex items-baseline justify-between mb-4">
@@ -269,7 +426,7 @@ export function ProfileShell({
                 </h2>
                 <Link
                   href="/cooling"
-                  className="text-[13px] font-semibold text-primary inline-flex items-center gap-1 hover:underline"
+                  className="text-label font-semibold text-primary inline-flex items-center gap-1 hover:underline"
                 >
                   See all <ArrowRight size={14} strokeWidth={2} />
                 </Link>
@@ -293,7 +450,7 @@ export function ProfileShell({
                       >
                         <div
                           className={cn(
-                            'flex-shrink-0 w-[34px] h-[34px] rounded-[10px] flex items-center justify-center',
+                            'flex-shrink-0 w-[34px] h-[34px] rounded-sm flex items-center justify-center',
                             isSaved ? 'bg-gold-tint text-gold-deep' : 'bg-coral-tint text-coral-deep',
                           )}
                         >
@@ -309,7 +466,7 @@ export function ProfileShell({
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-[13px] font-semibold text-foreground truncate">
+                          <p className="text-label font-semibold text-foreground truncate">
                             {isSaved ? 'Skipped' : 'Bought'} {item.title}
                           </p>
                           <p className="text-xs text-muted-foreground mt-0.5">
@@ -326,10 +483,60 @@ export function ProfileShell({
               </Card>
             </section>
 
-            <NotificationsSection />
+            {/* Notifications — functional (in-app only) */}
+            <section>
+              <h2 className="mb-4 font-display text-2xl font-medium tracking-tight text-foreground">
+                Notifications
+              </h2>
+              <Card padding="none">
+                <NotificationToggle
+                  label="Cooling ready"
+                  caption="Gentle ping when a temptation hits its timer"
+                  checked={notifyCooling}
+                  onToggle={toggleCooling}
+                />
+                <NotificationToggle
+                  label="Group activity"
+                  caption="When someone adds an expense or invites you"
+                  checked={notifyGroup}
+                  onToggle={toggleGroup}
+                />
+                <NotificationToggle
+                  label="Milestone unlocked"
+                  caption="Celebrate when you cross a savings threshold"
+                  checked={notifyMilestone}
+                  onToggle={toggleMilestone}
+                  last
+                />
+              </Card>
+            </section>
 
-            <DataSection />
+            {/* Data */}
+            <section>
+              <h2 className="mb-4 font-display text-2xl font-medium tracking-tight text-foreground">
+                Data
+              </h2>
+              <Card padding="none">
+                <a
+                  href="/api/export/csv"
+                  download
+                  className="w-full flex items-center gap-3.5 px-5 py-4 min-h-[60px] text-left hover:bg-foreground/[0.025] transition-colors"
+                >
+                  <div className="w-9 h-9 rounded-lg bg-primary-tint text-primary-deep flex items-center justify-center flex-shrink-0">
+                    <Download size={16} strokeWidth={1.8} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-label font-semibold text-foreground">Export as CSV</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Download every cooling item, skip, buy, and group expense
+                    </p>
+                  </div>
+                  <ChevronRight size={14} strokeWidth={1.8} className="text-subtle-foreground flex-shrink-0" />
+                </a>
+              </Card>
+            </section>
 
+            {/* Account */}
             <section>
               <h2 className="mb-4 font-display text-2xl font-medium tracking-tight text-foreground">
                 Account
@@ -340,7 +547,7 @@ export function ProfileShell({
                   className="flex items-center gap-3.5 px-5 py-4 min-h-[60px] border-b border-sep hover:bg-foreground/[0.025] transition-colors"
                 >
                   <div className="flex-1">
-                    <p className="text-[13px] font-semibold text-foreground">Income settings</p>
+                    <p className="text-label font-semibold text-foreground">Income settings</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       Calibrate the &ldquo;hours of your life&rdquo; lens
                     </p>
@@ -353,7 +560,7 @@ export function ProfileShell({
                     className="w-full flex items-center gap-3.5 px-5 py-4 min-h-[60px] border-b border-sep text-left hover:bg-foreground/[0.025] transition-colors"
                   >
                     <div className="flex-1">
-                      <p className="text-[13px] font-semibold text-foreground">Log out</p>
+                      <p className="text-label font-semibold text-foreground">Log out</p>
                       <p className="text-xs text-muted-foreground mt-0.5">On this device</p>
                     </div>
                     <LogOut size={14} strokeWidth={1.8} className="text-subtle-foreground flex-shrink-0" />
@@ -365,7 +572,7 @@ export function ProfileShell({
                   onClick={() => setConfirmingDelete(true)}
                 >
                   <div className="flex-1">
-                    <p className="text-[13px] font-semibold text-coral-deep">Delete account</p>
+                    <p className="text-label font-semibold text-coral-deep">Delete account</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       Permanently remove your data
                     </p>
@@ -373,6 +580,9 @@ export function ProfileShell({
                   <ChevronRight size={14} strokeWidth={1.8} className="text-coral-deep flex-shrink-0" />
                 </button>
               </Card>
+              {deleteError && (
+                <p className="mt-2 text-sm text-coral-deep">{deleteError}</p>
+              )}
             </section>
           </div>
         </div>
@@ -381,6 +591,7 @@ export function ProfileShell({
       {editing && (
         <EditProfileSheet
           initialName={name}
+          initialAvatarUrl={avatarUrl}
           email={email}
           onClose={() => setEditing(false)}
         />
@@ -394,252 +605,35 @@ export function ProfileShell({
         destructive
         requireText="DELETE"
         onCancel={() => setConfirmingDelete(false)}
-        onConfirm={() => {
+        onConfirm={async () => {
           setConfirmingDelete(false)
-          // Server-side deletion lands in a future sprint — placeholder for now.
-          alert('Account deletion will be wired up after submission.')
+          const err = await deleteAccount()
+          if (err) setDeleteError(err)
         }}
       />
     </div>
   )
 }
 
-/* ─── Mock sections (UI shipped; data wiring is "still mock") ─── */
-
-function MockBadge() {
-  return (
-    <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-gold-tint text-gold-deep text-[10px] font-semibold uppercase tracking-wide">
-      Still mock
-    </span>
-  )
-}
-
-function MilestonesSection({
-  savedCents,
-  skippedCount,
-}: {
-  savedCents: number
-  skippedCount: number
-}) {
-  // Threshold visuals are real-ish but the badge set is mock placeholder.
-  const items = [
-    {
-      icon: Award,
-      label: 'First save',
-      caption: 'Skipped your first temptation',
-      unlocked: skippedCount >= 1,
-    },
-    {
-      icon: Award,
-      label: 'Saved RM 100',
-      caption: 'Crossed your first hundred',
-      unlocked: savedCents >= 10_000,
-    },
-    {
-      icon: Award,
-      label: 'Saved RM 1,000',
-      caption: 'Four figures in pause',
-      unlocked: savedCents >= 100_000,
-    },
-    {
-      icon: Award,
-      label: '10-day streak',
-      caption: 'Mock — streak tracking lands later',
-      unlocked: false,
-    },
-  ]
-  return (
-    <section>
-      <h2 className="mb-4 font-display text-2xl font-medium tracking-tight text-foreground inline-flex items-center">
-        Milestones
-        <MockBadge />
-      </h2>
-      <div className="grid grid-cols-2 gap-3">
-        {items.map(m => {
-          const Icon = m.icon
-          return (
-            <div
-              key={m.label}
-              className={cn(
-                'rounded-2xl p-4 transition-all',
-                m.unlocked
-                  ? 'bg-card shadow-card border border-primary-soft'
-                  : 'bg-muted/40 border border-dashed border-sep-strong opacity-70',
-              )}
-            >
-              <div
-                className={cn(
-                  'w-10 h-10 rounded-lg flex items-center justify-center mb-2.5',
-                  m.unlocked ? 'bg-gold-tint text-gold-deep' : 'bg-card text-subtle-foreground',
-                )}
-              >
-                <Icon size={18} strokeWidth={1.8} />
-              </div>
-              <p className="text-sm font-semibold text-foreground">{m.label}</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">{m.caption}</p>
-            </div>
-          )
-        })}
-      </div>
-    </section>
-  )
-}
-
-function MostSkippedSection() {
-  // No category data yet — these slots are illustrative.
-  const rows = [
-    { label: 'Snacks & drinks', pct: 38, count: 12 },
-    { label: 'Apparel', pct: 26, count: 8 },
-    { label: 'Subscriptions', pct: 18, count: 6 },
-    { label: 'Tech accessories', pct: 12, count: 4 },
-  ]
-  return (
-    <section>
-      <h2 className="mb-4 font-display text-2xl font-medium tracking-tight text-foreground inline-flex items-center">
-        Most skipped
-        <MockBadge />
-      </h2>
-      <Card padding="md">
-        <div className="flex items-start gap-3 mb-4">
-          <div className="w-9 h-9 rounded-lg bg-primary-tint text-primary-deep flex items-center justify-center flex-shrink-0">
-            <Tag size={16} strokeWidth={1.8} />
-          </div>
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            Categories aren&apos;t stored yet. Once items get tagged, this chart shows where
-            your willpower is winning.
-          </p>
-        </div>
-        <div className="space-y-2.5">
-          {rows.map(r => (
-            <div key={r.label} className="space-y-1">
-              <div className="flex items-baseline justify-between">
-                <span className="text-[13px] font-semibold text-foreground">{r.label}</span>
-                <span className="text-[11px] tabular-nums text-muted-foreground">
-                  {r.count} items · {r.pct}%
-                </span>
-              </div>
-              <div className="h-2 rounded-full bg-muted overflow-hidden">
-                <div
-                  className="h-full bg-primary rounded-full"
-                  style={{ width: `${r.pct}%` }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      </Card>
-    </section>
-  )
-}
-
-function ThisQuarterSection() {
-  return (
-    <section>
-      <h2 className="mb-4 font-display text-2xl font-medium tracking-tight text-foreground inline-flex items-center">
-        This quarter
-        <MockBadge />
-      </h2>
-      <Card padding="md">
-        <div className="flex items-start gap-3">
-          <div className="w-9 h-9 rounded-lg bg-gold-tint text-gold-deep flex items-center justify-center flex-shrink-0">
-            <CalendarRange size={16} strokeWidth={1.8} />
-          </div>
-          <div className="flex-1">
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Quarterly breakdown is mocked. Real version compares pace vs the last 90 days.
-            </p>
-            <div className="mt-3 grid grid-cols-3 gap-3">
-              <QuarterCell label="Saved" value="RM 420" tone="primary" />
-              <QuarterCell label="Skipped" value="14" tone="text" />
-              <QuarterCell label="vs last" value="+18%" tone="gold" />
-            </div>
-          </div>
-        </div>
-      </Card>
-    </section>
-  )
-}
-
-function QuarterCell({
-  label,
-  value,
-  tone,
-}: {
-  label: string
-  value: string
-  tone: 'primary' | 'gold' | 'text'
-}) {
-  const colorClass =
-    tone === 'primary'
-      ? 'text-primary'
-      : tone === 'gold'
-        ? 'text-gold-deep'
-        : 'text-foreground'
-  return (
-    <div>
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-        {label}
-      </p>
-      <p
-        className={cn(
-          'mt-1 font-display text-lg font-medium tabular-nums tracking-tight',
-          colorClass,
-        )}
-      >
-        {value}
-      </p>
-    </div>
-  )
-}
-
-function NotificationsSection() {
-  return (
-    <section>
-      <h2 className="mb-4 font-display text-2xl font-medium tracking-tight text-foreground inline-flex items-center">
-        Notifications
-        <MockBadge />
-      </h2>
-      <Card padding="none">
-        <NotificationToggle
-          label="Cooling ready"
-          caption="Gentle ping when a temptation hits its timer"
-          defaultChecked
-        />
-        <NotificationToggle
-          label="Group activity"
-          caption="When someone adds an expense or invites you"
-          defaultChecked
-        />
-        <NotificationToggle
-          label="Weekly digest"
-          caption="A quiet summary every Sunday morning"
-        />
-        <NotificationToggle
-          label="Milestone unlocked"
-          caption="Celebrate when you cross a savings threshold"
-          last
-        />
-      </Card>
-    </section>
-  )
-}
+/* ─── Notification toggle ─── */
 
 function NotificationToggle({
   label,
   caption,
-  defaultChecked,
+  checked,
+  onToggle,
   last,
 }: {
   label: string
   caption: string
-  defaultChecked?: boolean
+  checked: boolean
+  onToggle: () => void
   last?: boolean
 }) {
-  const [on, setOn] = useState(!!defaultChecked)
   return (
     <button
       type="button"
-      onClick={() => setOn(v => !v)}
+      onClick={onToggle}
       className={cn(
         'w-full flex items-center gap-3.5 px-5 py-4 min-h-[60px] text-left hover:bg-foreground/[0.025] transition-colors',
         !last && 'border-b border-sep',
@@ -649,21 +643,21 @@ function NotificationToggle({
         <Bell size={16} strokeWidth={1.8} />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-[13px] font-semibold text-foreground">{label}</p>
+        <p className="text-label font-semibold text-foreground">{label}</p>
         <p className="text-xs text-muted-foreground mt-0.5">{caption}</p>
       </div>
       <span
         role="switch"
-        aria-checked={on}
+        aria-checked={checked}
         className={cn(
           'relative flex-shrink-0 w-11 h-6 rounded-full transition-colors',
-          on ? 'bg-primary' : 'bg-border',
+          checked ? 'bg-primary' : 'bg-border',
         )}
       >
         <span
           className={cn(
             'absolute top-0.5 w-5 h-5 rounded-full bg-card shadow transition-transform',
-            on ? 'translate-x-[22px]' : 'translate-x-0.5',
+            checked ? 'translate-x-[22px]' : 'translate-x-0.5',
           )}
         />
       </span>
@@ -671,71 +665,35 @@ function NotificationToggle({
   )
 }
 
-function DataSection() {
-  return (
-    <section>
-      <h2 className="mb-4 font-display text-2xl font-medium tracking-tight text-foreground inline-flex items-center">
-        Data
-        <MockBadge />
-      </h2>
-      <Card padding="none">
-        <button
-          type="button"
-          onClick={() => alert('CSV export wires up after submission — placeholder.')}
-          className="w-full flex items-center gap-3.5 px-5 py-4 min-h-[60px] text-left hover:bg-foreground/[0.025] transition-colors"
-        >
-          <div className="w-9 h-9 rounded-lg bg-primary-tint text-primary-deep flex items-center justify-center flex-shrink-0">
-            <Download size={16} strokeWidth={1.8} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[13px] font-semibold text-foreground">Export as CSV</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Download every cooling item, skip, buy, and group expense
-            </p>
-          </div>
-          <ChevronRight size={14} strokeWidth={1.8} className="text-subtle-foreground flex-shrink-0" />
-        </button>
-      </Card>
-    </section>
-  )
-}
-
-/* ─── Existing stat / record sub-components ─── */
+/* ─── Stat strip cell ─── */
 
 function StatCell({
   label,
   value,
   accent,
   border,
+  className,
 }: {
   label: string
   value: React.ReactNode
   accent: 'primary' | 'text' | 'gold'
   border?: boolean
+  className?: string
 }) {
   const colorClass =
-    accent === 'primary'
-      ? 'text-primary'
-      : accent === 'gold'
-        ? 'text-gold-deep'
-        : 'text-foreground'
+    accent === 'primary' ? 'text-primary' : accent === 'gold' ? 'text-gold-deep' : 'text-foreground'
 
   return (
-    <div className={cn('px-5 lg:px-6 py-5', border && 'border-r border-sep')}>
-      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-[1.2px]">
-        {label}
-      </p>
-      <p
-        className={cn(
-          'font-display text-2xl lg:text-[32px] font-medium tracking-tight tabular-nums leading-tight mt-1.5',
-          colorClass,
-        )}
-      >
+    <div className={cn('px-5 lg:px-6 py-5', border && 'border-r border-sep', className)}>
+      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-[1.2px]">{label}</p>
+      <p className={cn('font-display text-2xl lg:text-display-lg font-medium tracking-tight tabular-nums leading-tight mt-1.5', colorClass)}>
         {value}
       </p>
     </div>
   )
 }
+
+/* ─── Record row ─── */
 
 function RecordRow({
   label,
@@ -751,33 +709,30 @@ function RecordRow({
   last?: boolean
 }) {
   const colorClass =
-    accent === 'primary'
-      ? 'text-primary'
-      : accent === 'gold'
-        ? 'text-gold-deep'
-        : 'text-foreground'
+    accent === 'primary' ? 'text-primary' : accent === 'gold' ? 'text-gold-deep' : 'text-foreground'
 
   return (
-    <div
-      className={cn(
-        'flex items-center gap-4 lg:gap-5 px-5 lg:px-[22px] py-[18px]',
-        !last && 'border-b border-sep',
-      )}
-    >
+    <div className={cn('flex items-center gap-4 lg:gap-5 px-5 lg:px-[22px] py-[18px]', !last && 'border-b border-sep')}>
       <div className="flex-1 min-w-0">
-        <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-[1px]">
-          {label}
-        </p>
-        <p className="text-[13px] text-muted-foreground mt-1.5 italic">{caption}</p>
+        <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-[1px]">{label}</p>
+        <p className="text-label text-muted-foreground mt-1.5 italic">{caption}</p>
       </div>
-      <span
-        className={cn(
-          'font-display text-[28px] lg:text-[30px] font-medium tracking-tight tabular-nums flex-shrink-0',
-          colorClass,
-        )}
-      >
+      <span className={cn('font-display text-display-md lg:text-3xl font-medium tracking-tight tabular-nums flex-shrink-0', colorClass)}>
         {value}
       </span>
+    </div>
+  )
+}
+
+/* ─── Quarter cell ─── */
+
+function QuarterCell({ label, value, tone }: { label: string; value: string; tone: 'primary' | 'gold' | 'text' }) {
+  const colorClass =
+    tone === 'primary' ? 'text-primary' : tone === 'gold' ? 'text-gold-deep' : 'text-foreground'
+  return (
+    <div>
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className={cn('mt-1 font-display text-lg font-medium tabular-nums tracking-tight', colorClass)}>{value}</p>
     </div>
   )
 }

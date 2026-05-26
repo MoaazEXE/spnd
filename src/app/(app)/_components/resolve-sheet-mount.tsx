@@ -13,6 +13,7 @@ interface CoolingItem {
   amountCents: number
   coolingUntil: Date
   createdAt: Date
+  category: string | null
 }
 
 interface Celebration {

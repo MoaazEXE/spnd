@@ -13,8 +13,10 @@ import { settleGroup } from '@/app/actions/groups'
 export interface PlanRow {
   fromId: string
   fromLabel: string
+  fromAvatarUrl: string | null
   toId: string
   toLabel: string
+  toAvatarUrl: string | null
   amountCents: number
   // Who's allowed to confirm this row.
   involvesYou: boolean
@@ -147,7 +149,7 @@ export function SettleShell({ groupId, groupName, plan, evidence }: Props) {
                       i < othersOnly.length - 1 && 'border-b border-sep',
                     )}
                   >
-                    <Avatar name={row.fromLabel} size={32} />
+                    <Avatar name={row.fromLabel} src={row.fromAvatarUrl} size={32} />
                     <p className="flex-1 min-w-0 text-xs text-muted-foreground truncate">
                       <span className="font-semibold text-foreground">{row.fromLabel}</span>{' '}
                       pays{' '}
@@ -255,7 +257,7 @@ function PaymentRow({
         !last && 'border-b border-sep',
       )}
     >
-      <Avatar name={row.fromLabel} size={36} />
+      <Avatar name={row.fromLabel} src={row.fromAvatarUrl} size={36} />
       <div className="flex-1 min-w-0">
         <p className="text-[11px] font-medium text-muted-foreground">
           {row.youArePayer ? 'You pay' : `${row.fromLabel} pays`}
@@ -268,7 +270,7 @@ function PaymentRow({
       <div className="w-7 h-7 rounded-full bg-primary-tint text-primary flex items-center justify-center flex-shrink-0">
         <ArrowRight size={14} strokeWidth={2} />
       </div>
-      <Avatar name={row.youArePayer ? row.toLabel : 'You'} size={36} />
+      <Avatar name={row.youArePayer ? row.toLabel : 'You'} src={row.youArePayer ? row.toAvatarUrl : null} size={36} />
       <p className="text-base font-bold text-foreground tabular-nums flex-shrink-0 min-w-[72px] text-right">
         {fmtRM(row.amountCents)}
       </p>

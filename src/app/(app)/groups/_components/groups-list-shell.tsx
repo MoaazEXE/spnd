@@ -164,16 +164,16 @@ function GroupRow({ group }: { group: GroupSummary }) {
       <div className="flex items-center gap-3.5">
         <Avatar name={group.name} size={46} shape="square" className="flex-shrink-0" />
         <div className="flex-1 min-w-0">
-          <p className="text-[15px] font-semibold text-foreground truncate">{group.name}</p>
+          <p className="text-body-lg font-semibold text-foreground truncate">{group.name}</p>
           <div className="mt-1 flex items-center gap-2">
             <div className="flex">
               {group.members.slice(0, 4).map((m, i) => (
                 <div
                   key={m.id}
-                  className="rounded-full shadow-[0_0_0_2px_var(--card)]"
+                  className="rounded-full shadow-avatar-ring"
                   style={{ marginLeft: i > 0 ? -6 : 0 }}
                 >
-                  <Avatar name={m.name} size={20} />
+                  <Avatar name={m.name} src={m.avatarUrl} size={20} />
                 </div>
               ))}
             </div>
@@ -196,7 +196,7 @@ function BalanceBadge({ cents }: { cents: number }) {
     return (
       <div className="text-right">
         <p className="text-[11px] font-medium text-muted-foreground">You&apos;re owed</p>
-        <p className="text-[15px] font-bold text-primary tabular-nums">
+        <p className="text-body-lg font-bold text-primary tabular-nums">
           {fmtRM(cents, 0)}
         </p>
       </div>
@@ -205,7 +205,7 @@ function BalanceBadge({ cents }: { cents: number }) {
   return (
     <div className="text-right">
       <p className="text-[11px] font-medium text-muted-foreground">You owe</p>
-      <p className="text-[15px] font-bold text-coral-deep tabular-nums">
+      <p className="text-body-lg font-bold text-coral-deep tabular-nums">
         {fmtRM(Math.abs(cents), 0)}
       </p>
     </div>

@@ -11,6 +11,7 @@ interface PageProps {
 export interface GroupMemberView {
   id: string
   name: string
+  avatarUrl: string | null
   joinedAt: string
   balanceCents: number
 }
@@ -44,6 +45,7 @@ export default async function GroupPage({ params }: PageProps) {
   const members: GroupMemberView[] = group.members.map(m => ({
     id: m.user.id,
     name: m.userId === ctx.id ? `${m.user.name} (you)` : m.user.name,
+    avatarUrl: m.user.avatarUrl,
     joinedAt: m.joinedAt.toISOString(),
     balanceCents: balances.get(m.userId) ?? 0,
   }))

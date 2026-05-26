@@ -27,7 +27,7 @@ export default async function Home() {
           <em className="not-italic text-primary font-display italic">you buy.</em>
         </h1>
 
-        <p className="mt-5 text-[15px] lg:text-base text-muted-foreground leading-relaxed">
+        <p className="mt-5 text-body-lg lg:text-base text-muted-foreground leading-relaxed">
           Most apps track what you spent. Settle helps you notice the pause between wanting
           something and buying it — and keeps a quiet count of what stayed yours.
         </p>
@@ -111,7 +111,7 @@ function Step({
         {n}
       </div>
       <div className="flex-1 pt-0.5">
-        <p className="text-[15px] lg:text-base font-semibold text-foreground inline-flex items-center gap-1.5">
+        <p className="text-body-lg lg:text-base font-semibold text-foreground inline-flex items-center gap-1.5">
           {title}
           <span className="text-muted-foreground">{icon}</span>
         </p>

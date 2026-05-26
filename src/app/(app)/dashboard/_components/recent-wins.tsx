@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { X, Pencil } from 'lucide-react'
+import { X, Pencil, ArrowRight } from 'lucide-react'
+import Link from 'next/link'
 import { toast } from 'sonner'
 import { editWin } from '@/app/actions/items'
 import { fmtRM } from '@/lib/formatters'
@@ -261,6 +262,13 @@ export function RecentWins({ skippedItems, boughtItems, maxItems = 3 }: Props) {
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Recent activity
         </p>
+        <Link
+          href="/profile"
+          prefetch
+          className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+        >
+          See all <ArrowRight size={12} strokeWidth={2.2} />
+        </Link>
       </div>
 
       <Card padding="none" className="overflow-hidden">

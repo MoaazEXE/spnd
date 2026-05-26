@@ -17,11 +17,22 @@ export async function ensureUserRecord(user: MinimalAuthUser): Promise<void> {
       : null
   const name = metadataName ?? user.email?.split('@')[0] ?? 'User'
 
+  // Copy Google profile picture on first sign-in via OAuth
+  const googleAvatarUrl =
+    user.user_metadata && typeof user.user_metadata.avatar_url === 'string'
+      ? (user.user_metadata.avatar_url as string)
+      : undefined
+
   try {
     await prisma.user.upsert({
       where: { id: user.id },
       update: {},
-      create: { id: user.id, name, email: user.email ?? '' },
+      create: {
+        id: user.id,
+        name,
+        email: user.email ?? '',
+        ...(googleAvatarUrl && { avatarUrl: googleAvatarUrl }),
+      },
     })
   } catch (e) {
     const code = (e as { code?: string })?.code
@@ -29,7 +40,14 @@ export async function ensureUserRecord(user: MinimalAuthUser): Promise<void> {
       // Email exists under a different auth UUID (e.g. email signup → Google OAuth).
       // Replace the stale row; Item.onDelete:Cascade cleans up orphaned items.
       await prisma.user.deleteMany({ where: { email: user.email ?? '' } })
-      await prisma.user.create({ data: { id: user.id, name, email: user.email ?? '' } })
+      await prisma.user.create({
+        data: {
+          id: user.id,
+          name,
+          email: user.email ?? '',
+          ...(googleAvatarUrl && { avatarUrl: googleAvatarUrl }),
+        },
+      })
     } else {
       throw e
     }

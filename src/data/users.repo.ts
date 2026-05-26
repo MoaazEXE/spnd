@@ -29,4 +29,19 @@ export const usersRepo = {
   async updateName(id: string, name: string) {
     return prisma.user.update({ where: { id }, data: { name } })
   },
+
+  async updateProfile(id: string, data: { name: string; avatarUrl?: string }) {
+    return prisma.user.update({ where: { id }, data })
+  },
+
+  async updateNotificationPrefs(
+    id: string,
+    prefs: {
+      notifyCoolingReady: boolean
+      notifyGroupActivity: boolean
+      notifyMilestoneUnlocked: boolean
+    },
+  ) {
+    return prisma.user.update({ where: { id }, data: prefs })
+  },
 }

@@ -18,7 +18,7 @@ export function AuthHero({ eyebrow, title, description }: Props) {
             {eyebrow}
           </p>
         )}
-        <h1 className="text-4xl font-bold leading-[1.05] tracking-tight text-foreground">
+        <h1 className="font-display text-4xl font-medium leading-[1.05] tracking-tight text-foreground">
           {title}
         </h1>
         {description && (

@@ -19,12 +19,13 @@ interface Props {
   name: string
   email: string
   initial: string
+  avatarUrl?: string | null
   savedCents: number
   coolingCount: number
   groupsCount: number
 }
 
-export function Nav({ name, email, initial, savedCents, coolingCount, groupsCount }: Props) {
+export function Nav({ name, email, initial, avatarUrl, savedCents, coolingCount, groupsCount }: Props) {
   const pathname = usePathname()
 
   const isActive = (href: string) =>
@@ -90,9 +91,13 @@ export function Nav({ name, email, initial, savedCents, coolingCount, groupsCoun
 
         <div className="flex items-center gap-2.5 rounded-md bg-card px-3 py-2.5 shadow-card">
           <Link href="/profile" className="flex items-center gap-2.5 flex-1 min-w-0 hover:opacity-80 transition-opacity">
-            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-semibold">
-              {initial}
-            </div>
+            {avatarUrl ? (
+              <img src={avatarUrl} alt={name} className="flex-shrink-0 w-8 h-8 rounded-full object-cover" />
+            ) : (
+              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-semibold">
+                {initial}
+              </div>
+            )}
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold truncate">{name}</p>
               <p className="text-[11px] text-muted-foreground truncate">{email}</p>

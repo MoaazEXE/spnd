@@ -13,7 +13,10 @@ import {
   ValidationError,
   withValidation,
 } from '@/lib/form-data'
+import { CATEGORIES, DEFAULT_CATEGORY } from '@/core/categories/categories'
 import type { CoolingUnit } from '@/types'
+
+const VALID_CATEGORY_IDS = new Set(CATEGORIES.map(c => c.id))
 
 const COOLING_UNITS = new Set<CoolingUnit>(['MINUTES', 'HOURS', 'DAYS', 'WEEKS'])
 
@@ -52,10 +55,12 @@ export async function logItem(
     const userId = await getAuthUserId()
     const coolingUntil = computeCoolingUntil(new Date(), coolingValue, coolingUnit)
     const note = getString(formData, 'note')?.trim() || undefined
+    const rawCategory = getString(formData, 'category')?.trim()
+    const category = rawCategory && VALID_CATEGORY_IDS.has(rawCategory) ? rawCategory : DEFAULT_CATEGORY
 
-    await itemsRepo.create({ userId, title, amountCents, coolingUntil, note })
+    await itemsRepo.create({ userId, title, amountCents, coolingUntil, note, category })
     await usersRepo.updateDefaultCoolingPeriod(userId, `${coolingValue}${unitToSuffix(coolingUnit)}`)
-  })
+  }, 'action:logItem')
 
   revalidatePath('/dashboard')
   revalidatePath('/cooling')
@@ -82,8 +87,10 @@ export async function editWin(
       throw new ValidationError('Invalid outcome.')
     }
     const userId = await getAuthUserId()
-    await itemsRepo.updateResolved(id, userId, { title, amountCents, status: outcome })
-  })
+    const rawCategory = getString(formData, 'category')?.trim()
+    const category = rawCategory && VALID_CATEGORY_IDS.has(rawCategory) ? rawCategory : undefined
+    await itemsRepo.updateResolved(id, userId, { title, amountCents, status: outcome, ...(category && { category }) })
+  }, 'action:editWin')
 
   revalidatePath('/dashboard')
   revalidatePath('/cooling')
@@ -109,8 +116,10 @@ export async function editCoolingItem(
 
     const userId = await getAuthUserId()
     const coolingUntil = computeCoolingUntil(new Date(), coolingValue, coolingUnit)
-    await itemsRepo.updateCooling(id, userId, { title, amountCents, coolingUntil })
-  })
+    const rawCategory = getString(formData, 'category')?.trim()
+    const category = rawCategory && VALID_CATEGORY_IDS.has(rawCategory) ? rawCategory : undefined
+    await itemsRepo.updateCooling(id, userId, { title, amountCents, coolingUntil, ...(category && { category }) })
+  }, 'action:editCoolingItem')
 
   revalidatePath('/dashboard')
   revalidatePath('/cooling')

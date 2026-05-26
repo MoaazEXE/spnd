@@ -1,60 +1,56 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 
-/**
- * Subscribes to Supabase Realtime for a group's expenses + members. On any
- * change (insert/update/delete) the App Router refreshes the current route
- * — the deep cached fetch re-runs and the UI catches up.
- *
- * Requires the publication to include these tables in Supabase:
- *   alter publication supabase_realtime add table "Expense", "GroupMember", "ExpenseShare";
- *
- * Silently does nothing if Realtime isn't enabled — production-safe fallback.
- */
+// Module-level refcount map — prevents duplicate channels when the hook is
+// mounted multiple times for the same group (e.g. StrictMode double-invoke,
+// or two sibling components both calling the hook).
+const channels = new Map<string, { ch: RealtimeChannel; refCount: number }>()
+
 export function useGroupRealtime(groupId: string) {
   const router = useRouter()
+  // Stable callback ref — avoids tearing down/recreating the channel when
+  // Next.js swaps the router object reference between renders.
+  const refreshRef = useRef(router.refresh)
+  refreshRef.current = router.refresh
 
   useEffect(() => {
     if (!groupId) return
+
+    const existing = channels.get(groupId)
+    if (existing) {
+      existing.refCount++
+      return () => {
+        existing.refCount--
+        if (existing.refCount === 0) {
+          const supabase = createClient()
+          supabase.removeChannel(existing.ch)
+          channels.delete(groupId)
+        }
+      }
+    }
+
     const supabase = createClient()
-    const channel = supabase
+    const ch = supabase
       .channel(`group-${groupId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'Expense',
-          filter: `groupId=eq.${groupId}`,
-        },
-        () => router.refresh(),
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'GroupMember',
-          filter: `groupId=eq.${groupId}`,
-        },
-        () => router.refresh(),
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'ExpenseShare',
-        },
-        () => router.refresh(),
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'Expense', filter: `groupId=eq.${groupId}` }, () => refreshRef.current())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'GroupMember', filter: `groupId=eq.${groupId}` }, () => refreshRef.current())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ExpenseShare' }, () => refreshRef.current())
       .subscribe()
 
+    channels.set(groupId, { ch, refCount: 1 })
+
     return () => {
-      supabase.removeChannel(channel)
+      const entry = channels.get(groupId)
+      if (!entry) return
+      entry.refCount--
+      if (entry.refCount === 0) {
+        supabase.removeChannel(entry.ch)
+        channels.delete(groupId)
+      }
     }
-  }, [groupId, router])
+  }, [groupId])
 }

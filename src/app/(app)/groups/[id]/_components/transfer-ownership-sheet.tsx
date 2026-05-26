@@ -91,7 +91,7 @@ export function TransferOwnershipSheet({
                     : 'border-border bg-card hover:bg-muted',
                 )}
               >
-                <Avatar name={m.name} size={36} />
+                <Avatar name={m.name} src={m.avatarUrl} size={36} />
                 <span className="flex-1 min-w-0 text-sm font-semibold text-foreground truncate">
                   {m.name}
                 </span>

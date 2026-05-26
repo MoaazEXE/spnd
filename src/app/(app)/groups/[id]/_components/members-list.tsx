@@ -23,7 +23,7 @@ export function MembersList({ members, onInvite }: Props) {
               i < members.length - 1 && 'border-b border-sep',
             )}
           >
-            <Avatar name={m.name} size={36} />
+            <Avatar name={m.name} src={m.avatarUrl} size={36} />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-foreground truncate">{m.name}</p>
               <p className="text-[11px] text-muted-foreground mt-0.5">

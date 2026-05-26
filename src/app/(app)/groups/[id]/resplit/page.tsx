@@ -45,6 +45,7 @@ export default async function ResplitAllPage({ params }: PageProps) {
     return {
       id: m.userId,
       name: m.userId === ctx.id ? `${m.user.name} (you)` : m.user.name,
+      avatarUrl: m.user.avatarUrl,
       before,
       after,
       delta: after - before,
@@ -106,7 +107,7 @@ export default async function ResplitAllPage({ params }: PageProps) {
                   i < rows.length - 1 && 'border-b border-sep',
                 )}
               >
-                <Avatar name={r.name} size={36} />
+                <Avatar name={r.name} src={r.avatarUrl} size={36} />
                 <p className="flex-1 min-w-0 text-sm font-semibold text-foreground truncate">
                   {r.name}
                 </p>

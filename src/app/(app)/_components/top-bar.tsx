@@ -19,9 +19,10 @@ interface Props {
   coolingItems: CoolingItem[]
   invites: PendingInvite[]
   userInitial: string
+  userAvatarUrl?: string | null
 }
 
-export function TopBar({ coolingItems, invites, userInitial }: Props) {
+export function TopBar({ coolingItems, invites, userInitial, userAvatarUrl }: Props) {
   const [searchOpen, setSearchOpen] = useState(false)
   const log = useLogModal()
 
@@ -75,10 +76,14 @@ export function TopBar({ coolingItems, invites, userInitial }: Props) {
 
         <Link
           href="/profile"
-          className="lg:hidden flex-shrink-0 w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-semibold"
+          className="lg:hidden flex-shrink-0 w-10 h-10 rounded-full overflow-hidden bg-primary text-primary-foreground flex items-center justify-center text-xs font-semibold"
           aria-label="Profile"
         >
-          {userInitial}
+          {userAvatarUrl ? (
+            <img src={userAvatarUrl} alt="" className="w-full h-full object-cover" />
+          ) : (
+            userInitial
+          )}
         </Link>
       </header>
 

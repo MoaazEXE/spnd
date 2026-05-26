@@ -40,11 +40,16 @@ export class ValidationError extends Error {
 }
 
 /** Wrap a Server Action body so ValidationErrors return as form messages. */
-export async function withValidation<T>(fn: () => Promise<T>): Promise<T | string> {
+export async function withValidation<T>(fn: () => Promise<T>, scope?: string): Promise<T | string> {
   try {
     return await fn()
   } catch (e) {
     if (e instanceof ValidationError) return e.message
+    // Log unexpected infra failures before re-throwing to the error boundary
+    if (scope) {
+      const { logError } = await import('@/lib/log-error')
+      await logError(scope, {}, e)
+    }
     throw e
   }
 }
