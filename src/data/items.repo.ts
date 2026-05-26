@@ -1,4 +1,5 @@
 import { cache } from 'react'
+import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import type { ItemStatus } from '@/types'
 
@@ -7,24 +8,30 @@ import type { ItemStatus } from '@/types'
  * Repo methods below return slices of this single result, so any combination
  * of finders within one request shares the same DB round-trip.
  */
-const findAllByUserCached = cache(async (userId: string) => {
-  const all = await prisma.item.findMany({
-    where: { userId },
-    orderBy: [{ status: 'asc' }, { coolingUntil: 'asc' }, { resolvedAt: 'desc' }],
-  })
-  return {
-    all,
-    cooling: all
-      .filter(i => i.status === 'COOLING')
-      .sort((a, b) => a.coolingUntil.getTime() - b.coolingUntil.getTime()),
-    skipped: all
-      .filter(i => i.status === 'SKIPPED')
-      .sort((a, b) => (b.resolvedAt?.getTime() ?? 0) - (a.resolvedAt?.getTime() ?? 0)),
-    bought: all
-      .filter(i => i.status === 'BOUGHT')
-      .sort((a, b) => (b.resolvedAt?.getTime() ?? 0) - (a.resolvedAt?.getTime() ?? 0)),
-  }
-})
+const findAllByUserCached = cache(async (userId: string) =>
+  unstable_cache(
+    async () => {
+      const all = await prisma.item.findMany({
+        where: { userId },
+        orderBy: [{ status: 'asc' }, { coolingUntil: 'asc' }, { resolvedAt: 'desc' }],
+      })
+      return {
+        all,
+        cooling: all
+          .filter(i => i.status === 'COOLING')
+          .sort((a, b) => a.coolingUntil.getTime() - b.coolingUntil.getTime()),
+        skipped: all
+          .filter(i => i.status === 'SKIPPED')
+          .sort((a, b) => (b.resolvedAt?.getTime() ?? 0) - (a.resolvedAt?.getTime() ?? 0)),
+        bought: all
+          .filter(i => i.status === 'BOUGHT')
+          .sort((a, b) => (b.resolvedAt?.getTime() ?? 0) - (a.resolvedAt?.getTime() ?? 0)),
+      }
+    },
+    ['items-findAllByUser', userId],
+    { tags: [`items-user-${userId}`] },
+  )(),
+)
 
 export const itemsRepo = {
   async findManyByUser(userId: string) {
@@ -32,41 +39,61 @@ export const itemsRepo = {
   },
 
   /** Aggregate sum — much faster than fetching all rows just to sum. */
-  sumSkippedCentsByUser: cache(async (userId: string) => {
-    const agg = await prisma.item.aggregate({
-      where: { userId, status: 'SKIPPED' },
-      _sum: { amountCents: true },
-    })
-    return agg._sum.amountCents ?? 0
-  }),
+  sumSkippedCentsByUser: cache(async (userId: string) =>
+    unstable_cache(
+      async () => {
+        const agg = await prisma.item.aggregate({
+          where: { userId, status: 'SKIPPED' },
+          _sum: { amountCents: true },
+        })
+        return agg._sum.amountCents ?? 0
+      },
+      ['items-sumSkippedCentsByUser', userId],
+      { tags: [`items-user-${userId}`] },
+    )(),
+  ),
 
   countCoolingByUser: cache(async (userId: string) =>
-    prisma.item.count({ where: { userId, status: 'COOLING' } }),
+    unstable_cache(
+      async () => prisma.item.count({ where: { userId, status: 'COOLING' } }),
+      ['items-countCoolingByUser', userId],
+      { tags: [`items-user-${userId}`] },
+    )(),
   ),
 
   /** Just cooling rows shaped for the bell — small projection. */
   findCoolingForBellByUser: cache(async (userId: string) =>
-    prisma.item.findMany({
-      where: { userId, status: 'COOLING' },
-      orderBy: { coolingUntil: 'asc' },
-      select: { id: true, title: true, amountCents: true, coolingUntil: true },
-    }),
+    unstable_cache(
+      async () =>
+        prisma.item.findMany({
+          where: { userId, status: 'COOLING' },
+          orderBy: { coolingUntil: 'asc' },
+          select: { id: true, title: true, amountCents: true, coolingUntil: true },
+        }),
+      ['items-findCoolingForBellByUser', userId],
+      { tags: [`items-user-${userId}`] },
+    )(),
   ),
 
   /** Cooling rows shaped for resolve-sheet — adds createdAt for progress bar. */
   findCoolingForResolveByUser: cache(async (userId: string) =>
-    prisma.item.findMany({
-      where: { userId, status: 'COOLING' },
-      orderBy: { coolingUntil: 'asc' },
-      select: {
-        id: true,
-        title: true,
-        amountCents: true,
-        coolingUntil: true,
-        createdAt: true,
-        category: true,
-      },
-    }),
+    unstable_cache(
+      async () =>
+        prisma.item.findMany({
+          where: { userId, status: 'COOLING' },
+          orderBy: { coolingUntil: 'asc' },
+          select: {
+            id: true,
+            title: true,
+            amountCents: true,
+            coolingUntil: true,
+            createdAt: true,
+            category: true,
+          },
+        }),
+      ['items-findCoolingForResolveByUser', userId],
+      { tags: [`items-user-${userId}`] },
+    )(),
   ),
 
   async findSkippedByUser(userId: string) {
@@ -112,7 +139,6 @@ export const itemsRepo = {
     if (!q) return []
     const qLower = q.toLowerCase()
 
-    // Fetch a larger pool so we can re-rank in memory by relevance + status.
     const pool = await prisma.item.findMany({
       where: {
         userId,
@@ -122,8 +148,6 @@ export const itemsRepo = {
       take: limit * 4,
     })
 
-    // Tier by match shape: exact > startsWith > contains.
-    // Within tier, COOLING (active context) > SKIPPED > BOUGHT.
     const statusWeight: Record<string, number> = { COOLING: 3, SKIPPED: 2, BOUGHT: 1 }
     const score = (i: (typeof pool)[number]) => {
       const t = i.title.toLowerCase()

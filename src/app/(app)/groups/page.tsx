@@ -19,10 +19,38 @@ export interface InvitePreview {
   memberCount: number
 }
 
+/**
+ * Serialized group shape passed to the client-side GroupsListShell.
+ * All Date fields are pre-converted to ISO strings so the client component
+ * receives correct types without relying on RSC Date serialization.
+ */
+export interface RawGroupForShell {
+  id: string
+  name: string
+  createdBy: string
+  members: {
+    userId: string
+    joinedAt: string
+    user: { id: string; name: string; avatarUrl: string | null }
+  }[]
+  expenses: {
+    id: string
+    payerId: string
+    amountCents: number
+    description: string
+    createdAt: string
+    shares: { userId: string; shareCents: number }[]
+    payer: { id: string; name: string; avatarUrl: string | null }
+  }[]
+  items: { amountCents: number }[]
+}
+
 export default async function GroupsPage() {
   const ctx = await getUserContext()
   if (!ctx) redirect('/login')
 
+  // Single DB round-trip: findManyByUserDeep fetches everything needed,
+  // including full expense/member/share data for the right-panel detail view.
   const [groups, pendingInvites] = await Promise.all([
     groupsRepo.findManyByUserDeep(ctx.id),
     groupsRepo.findPendingInvitesByUser(ctx.id),
@@ -49,12 +77,35 @@ export default async function GroupsPage() {
 
   const totalSavedCents = summaries.reduce((sum, s) => sum + s.savedTogetherCents, 0)
 
+  // Pre-serialize Date fields so the client component receives plain strings.
+  const allGroupsRaw: RawGroupForShell[] = groups.map(g => ({
+    id: g.id,
+    name: g.name,
+    createdBy: g.createdBy,
+    members: g.members.map(m => ({
+      userId: m.userId,
+      joinedAt: new Date(m.joinedAt).toISOString(),
+      user: { id: m.user.id, name: m.user.name, avatarUrl: m.user.avatarUrl },
+    })),
+    expenses: g.expenses.map(e => ({
+      id: e.id,
+      payerId: e.payerId,
+      amountCents: e.amountCents,
+      description: e.description,
+      createdAt: new Date(e.createdAt).toISOString(),
+      shares: e.shares.map(s => ({ userId: s.userId, shareCents: s.shareCents })),
+      payer: { id: e.payer.id, name: e.payer.name, avatarUrl: e.payer.avatarUrl },
+    })),
+    items: g.items.map(i => ({ amountCents: i.amountCents })),
+  }))
+
   return (
     <GroupsListShell
       groups={summaries}
       invites={invites}
       totalSavedCents={totalSavedCents}
       currentUserId={ctx.id}
+      allGroupsRaw={allGroupsRaw}
     />
   )
 }

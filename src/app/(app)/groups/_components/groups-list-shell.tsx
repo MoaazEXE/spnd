@@ -1,27 +1,122 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useMemo } from 'react'
 import Link from 'next/link'
 import { Plus, Users } from 'lucide-react'
 import { fmtRM } from '@/lib/formatters'
 import { Avatar } from '@/components/ui/avatar'
 import { Card } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
+import { cn } from '@/lib/utils'
 import { acceptInvite, rejectInvite } from '@/app/actions/groups'
+import { computeBalances, settlementPlan } from '@/core/debt/groupBalances'
 import { CreateGroupSheet } from './create-group-sheet'
-import type { GroupSummary, InvitePreview } from '../page'
+import { GroupDetailPanel, GroupDetailPanelEmpty } from './group-detail-panel'
+import type { GroupSummary, InvitePreview, RawGroupForShell } from '../page'
+import type { GroupMemberView, GroupActivityView } from '../[id]/page'
+import type { PlanRow } from '../[id]/settle/_components/settle-shell'
+
+interface SelectedGroupDetail {
+  groupId: string
+  groupName: string
+  members: GroupMemberView[]
+  activity: GroupActivityView[]
+  savedTogetherCents: number
+  youBalanceCents: number
+  settlePlan: PlanRow[]
+  isCreator: boolean
+  openProposalsCount: number
+}
 
 interface Props {
   groups: GroupSummary[]
   invites: InvitePreview[]
   totalSavedCents: number
   currentUserId: string
+  allGroupsRaw: RawGroupForShell[]
 }
 
-export function GroupsListShell({ groups, invites, totalSavedCents }: Props) {
+export function GroupsListShell({
+  groups,
+  invites,
+  totalSavedCents,
+  currentUserId,
+  allGroupsRaw,
+}: Props) {
   const [creating, setCreating] = useState(false)
   const [pending, startTransition] = useTransition()
   const [actingOn, setActingOn] = useState<string | null>(null)
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
+
+  // Derive the right-panel detail entirely from already-loaded data.
+  // No network round-trip — selecting a group is instant.
+  const selectedDetail = useMemo((): SelectedGroupDetail | null => {
+    if (!selectedGroupId) return null
+    const g = allGroupsRaw.find(g => g.id === selectedGroupId)
+    if (!g) return null
+
+    // expenses type must satisfy computeBalances / settlementPlan signatures
+    const expenses = g.expenses as Parameters<typeof computeBalances>[0]
+    const balances = computeBalances(expenses)
+    const savedTogetherCents = g.items.reduce((sum, i) => sum + i.amountCents, 0)
+
+    const nameById = new Map(g.members.map(m => [m.userId, m.user.name]))
+    const avatarById = new Map(g.members.map(m => [m.userId, m.user.avatarUrl]))
+    const labelFor = (uid: string) => (uid === currentUserId ? 'You' : nameById.get(uid) ?? 'Member')
+
+    const members: GroupMemberView[] = g.members.map(m => ({
+      id: m.user.id,
+      name: m.userId === currentUserId ? `${m.user.name} (you)` : m.user.name,
+      avatarUrl: m.user.avatarUrl,
+      joinedAt: m.joinedAt, // already an ISO string
+      balanceCents: balances.get(m.userId) ?? 0,
+    }))
+
+    const activity: GroupActivityView[] = g.expenses.map(e => {
+      const isSettlement = e.description === 'Settlement'
+      const payerLabel = e.payerId === currentUserId ? 'You' : e.payer.name
+      return {
+        id: e.id,
+        type: isSettlement ? 'settlement' : 'split',
+        title: isSettlement
+          ? `${payerLabel} paid ${
+              g.members.find(m => m.userId === e.shares[0]?.userId)?.user.name ?? 'a member'
+            }`
+          : e.description,
+        description: e.description,
+        amountCents: e.amountCents,
+        perPersonCents: e.shares.find(s => s.userId === currentUserId)?.shareCents ?? 0,
+        payerId: e.payerId,
+        payerName: payerLabel,
+        shareCount: e.shares.length,
+        createdAt: e.createdAt, // already an ISO string
+      }
+    })
+
+    const plan: PlanRow[] = settlementPlan(expenses).map(p => ({
+      fromId: p.from,
+      fromLabel: labelFor(p.from),
+      fromAvatarUrl: avatarById.get(p.from) ?? null,
+      toId: p.to,
+      toLabel: labelFor(p.to),
+      toAvatarUrl: avatarById.get(p.to) ?? null,
+      amountCents: p.amountCents,
+      involvesYou: p.from === currentUserId || p.to === currentUserId,
+      youArePayer: p.from === currentUserId,
+    }))
+
+    return {
+      groupId: g.id,
+      groupName: g.name,
+      members,
+      activity,
+      savedTogetherCents,
+      youBalanceCents: balances.get(currentUserId) ?? 0,
+      settlePlan: plan,
+      isCreator: g.createdBy === currentUserId,
+      openProposalsCount: 0,
+    }
+  }, [selectedGroupId, allGroupsRaw, currentUserId])
 
   function handleAccept(groupId: string) {
     setActingOn(groupId)
@@ -44,117 +139,270 @@ export function GroupsListShell({ groups, invites, totalSavedCents }: Props) {
   }
 
   return (
-    <div className="max-w-[640px] mx-auto px-5 lg:px-12 pt-6 lg:pt-8 pb-8 lg:pb-16">
-      <header className="mb-5 flex items-start justify-between gap-3">
-        <div>
-          <h1 className="font-display text-3xl lg:text-4xl font-semibold tracking-tight text-foreground">
+    <>
+      {/* ── Desktop two-panel layout ── */}
+      <div className="hidden lg:flex flex-col px-8 pt-8 pb-8 min-h-full">
+        <header className="mb-5">
+          <h1 className="font-display text-4xl font-semibold tracking-tight text-foreground">
             Groups
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Split real expenses. Cool on shared impulse buys.
+            Split real expenses. Cool on shared impulse buys together.
+          </p>
+        </header>
+
+        <div className="flex gap-4 items-start">
+          {/* Left panel */}
+          <div className="w-[270px] flex-shrink-0 flex flex-col gap-2">
+            {invites.length > 0 && (
+              <div className="mb-1 space-y-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground px-1">
+                  {invites.length === 1 ? 'Pending invite' : `Pending invites · ${invites.length}`}
+                </p>
+                {invites.map(inv => {
+                  const busy = pending && actingOn === inv.groupId
+                  return (
+                    <Card key={inv.groupId} padding="sm" className="border border-primary-soft">
+                      <div className="flex items-center gap-2.5 mb-2.5">
+                        <div className="flex-shrink-0 w-9 h-9 rounded-lg bg-primary-tint flex items-center justify-center text-primary-deep">
+                          <Users size={16} strokeWidth={1.8} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-foreground truncate">{inv.groupName}</p>
+                          <p className="text-[11px] text-muted-foreground">
+                            {inv.memberCount} {inv.memberCount === 1 ? 'member' : 'members'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleReject(inv.groupId)}
+                          disabled={!!busy}
+                          className="flex-1 h-8 rounded-md text-[11px] font-semibold text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                        >
+                          {busy ? '…' : 'Reject'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleAccept(inv.groupId)}
+                          disabled={!!busy}
+                          className="flex-1 h-8 rounded-md bg-primary text-primary-foreground text-[11px] font-semibold hover:bg-primary-deep transition-colors disabled:opacity-50"
+                        >
+                          {busy ? '…' : 'Accept'}
+                        </button>
+                      </div>
+                    </Card>
+                  )
+                })}
+              </div>
+            )}
+
+            {groups.length === 0 ? (
+              <Card padding="sm" className="text-center py-6">
+                <p className="text-xs font-semibold text-foreground">No groups yet.</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">Create one to get started.</p>
+              </Card>
+            ) : (
+              groups.map(g => (
+                <DesktopGroupRow
+                  key={g.id}
+                  group={g}
+                  selected={selectedGroupId === g.id}
+                  onSelect={() => setSelectedGroupId(g.id)}
+                />
+              ))
+            )}
+
+            <button
+              type="button"
+              onClick={() => setCreating(true)}
+              className="mt-1 w-full rounded-2xl border-[1.5px] border-dashed border-sep-strong px-4 py-3 text-center transition-colors hover:bg-card"
+            >
+              <p className="text-sm font-semibold text-primary">+ Create new group</p>
+            </button>
+          </div>
+
+          {/* Right panel */}
+          <div className="flex-1 min-w-0 rounded-2xl bg-card shadow-card overflow-hidden">
+            {selectedDetail ? (
+              <GroupDetailPanel
+                groupId={selectedDetail.groupId}
+                groupName={selectedDetail.groupName}
+                members={selectedDetail.members}
+                activity={selectedDetail.activity}
+                currentUserId={currentUserId}
+                isCreator={selectedDetail.isCreator}
+                savedTogetherCents={selectedDetail.savedTogetherCents}
+                youBalanceCents={selectedDetail.youBalanceCents}
+                settlePlan={selectedDetail.settlePlan}
+                openProposalsCount={selectedDetail.openProposalsCount}
+              />
+            ) : (
+              <GroupDetailPanelEmpty />
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Mobile layout ── */}
+      <div className="lg:hidden max-w-[640px] mx-auto px-5 pt-6 pb-8">
+        <header className="mb-5 flex items-start justify-between gap-3">
+          <div>
+            <h1 className="font-display text-3xl font-semibold tracking-tight text-foreground">
+              Groups
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Split real expenses. Cool on shared impulse buys.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCreating(true)}
+            aria-label="Create group"
+            className="flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center hover:bg-foreground/5 transition-colors"
+          >
+            <Plus size={20} strokeWidth={2} className="text-foreground" />
+          </button>
+        </header>
+
+        {invites.length > 0 && (
+          <div className="mb-5 space-y-2.5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {invites.length === 1 ? 'Pending invite' : `Pending invites · ${invites.length}`}
+            </p>
+            {invites.map(inv => {
+              const busy = pending && actingOn === inv.groupId
+              return (
+                <Card key={inv.groupId} padding="sm" className="border border-primary-soft">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-primary-tint flex items-center justify-center text-primary-deep">
+                      <Users size={18} strokeWidth={1.8} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-foreground truncate">{inv.groupName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Invited you · {inv.memberCount}{' '}
+                        {inv.memberCount === 1 ? 'member' : 'members'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleReject(inv.groupId)}
+                      disabled={!!busy}
+                      className="flex-1 h-11 rounded-md text-xs font-semibold text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                    >
+                      {busy ? '…' : 'Reject'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAccept(inv.groupId)}
+                      disabled={!!busy}
+                      className="flex-1 h-11 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary-deep transition-colors disabled:opacity-50"
+                    >
+                      {busy ? '…' : 'Accept'}
+                    </button>
+                  </div>
+                </Card>
+              )
+            })}
+          </div>
+        )}
+
+        <div className="rounded-2xl p-5 mb-5 text-white shadow-card bg-gradient-to-br from-primary to-primary-deep">
+          <p className="text-xs font-semibold uppercase tracking-wide opacity-70">Saved together</p>
+          <p className="mt-1 font-display text-4xl font-semibold tabular-nums tracking-tight">
+            {fmtRM(totalSavedCents)}
+          </p>
+          <p className="mt-1 text-xs opacity-70">
+            Across {groups.length} {groups.length === 1 ? 'group' : 'groups'}, all time
           </p>
         </div>
+
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Your groups
+        </p>
+
+        {groups.length === 0 ? (
+          <EmptyState
+            title="No groups yet."
+            subtitle="Create one to split expenses or cool on something together."
+          />
+        ) : (
+          <div className="flex flex-col gap-2.5">
+            {groups.map(g => (
+              <MobileGroupRow key={g.id} group={g} />
+            ))}
+          </div>
+        )}
+
         <button
           type="button"
           onClick={() => setCreating(true)}
-          aria-label="Create group"
-          className="lg:hidden flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center hover:bg-foreground/5 transition-colors"
+          className="mt-4 w-full rounded-2xl border-[1.5px] border-dashed border-sep-strong px-4 py-3.5 text-center transition-colors hover:bg-card"
         >
-          <Plus size={20} strokeWidth={2} className="text-foreground" />
+          <p className="text-sm font-semibold text-primary">+ Create new group</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">Split, cool, save together</p>
         </button>
-      </header>
-
-      {invites.length > 0 && (
-        <div className="mb-5 space-y-2.5">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            {invites.length === 1 ? 'Pending invite' : `Pending invites · ${invites.length}`}
-          </p>
-          {invites.map(inv => {
-            const busy = pending && actingOn === inv.groupId
-            return (
-              <Card key={inv.groupId} padding="sm" className="border border-primary-soft">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-primary-tint flex items-center justify-center text-primary-deep">
-                    <Users size={18} strokeWidth={1.8} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-foreground truncate">
-                      {inv.groupName}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Invited you · {inv.memberCount}{' '}
-                      {inv.memberCount === 1 ? 'member' : 'members'}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleReject(inv.groupId)}
-                    disabled={!!busy}
-                    className="flex-1 h-11 lg:h-9 rounded-md text-xs font-semibold text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
-                  >
-                    {busy ? '…' : 'Reject'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleAccept(inv.groupId)}
-                    disabled={!!busy}
-                    className="flex-1 h-11 lg:h-9 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary-deep transition-colors disabled:opacity-50"
-                  >
-                    {busy ? '…' : 'Accept'}
-                  </button>
-                </div>
-              </Card>
-            )
-          })}
-        </div>
-      )}
-
-      <div className="rounded-2xl p-5 mb-5 text-white shadow-card bg-gradient-to-br from-primary to-primary-deep">
-        <p className="text-xs font-semibold uppercase tracking-wide opacity-70">
-          Saved together
-        </p>
-        <p className="mt-1 font-display text-4xl font-semibold tabular-nums tracking-tight">
-          {fmtRM(totalSavedCents)}
-        </p>
-        <p className="mt-1 text-xs opacity-70">
-          Across {groups.length} {groups.length === 1 ? 'group' : 'groups'}, all time
-        </p>
       </div>
 
-      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        Your groups
-      </p>
-
-      {groups.length === 0 ? (
-        <EmptyState
-          title="No groups yet."
-          subtitle="Create one to split expenses or cool on something together."
-        />
-      ) : (
-        <div className="flex flex-col gap-2.5">
-          {groups.map(g => (
-            <GroupRow key={g.id} group={g} />
-          ))}
-        </div>
-      )}
-
-      <button
-        type="button"
-        onClick={() => setCreating(true)}
-        className="mt-4 w-full rounded-2xl border-[1.5px] border-dashed border-sep-strong px-4 py-3.5 text-center transition-colors hover:bg-card"
-      >
-        <p className="text-sm font-semibold text-primary">+ Create new group</p>
-        <p className="mt-0.5 text-xs text-muted-foreground">Split, cool, save together</p>
-      </button>
-
       {creating && <CreateGroupSheet onClose={() => setCreating(false)} />}
-    </div>
+    </>
   )
 }
 
-function GroupRow({ group }: { group: GroupSummary }) {
+function DesktopGroupRow({
+  group,
+  selected,
+  onSelect,
+}: {
+  group: GroupSummary
+  selected: boolean
+  onSelect: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={cn(
+        'w-full flex items-center gap-3 rounded-2xl bg-card px-4 py-3.5 text-left transition-all',
+        selected
+          ? 'shadow-card-hover ring-1 ring-primary/20'
+          : 'shadow-card hover:-translate-y-[1px] hover:shadow-card-hover',
+      )}
+    >
+      <Avatar name={group.name} size={44} shape="square" className="flex-shrink-0" />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-foreground truncate">{group.name}</p>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          {group.memberCount} {group.memberCount === 1 ? 'member' : 'members'}
+        </p>
+      </div>
+      <DesktopBalanceBadge cents={group.youOweCents} />
+    </button>
+  )
+}
+
+function DesktopBalanceBadge({ cents }: { cents: number }) {
+  if (cents === 0) {
+    return <span className="text-xs font-medium text-muted-foreground">Settled</span>
+  }
+  return (
+    <span
+      className={cn(
+        'text-sm font-bold tabular-nums flex-shrink-0',
+        cents > 0 ? 'text-primary' : 'text-coral-deep',
+      )}
+    >
+      {cents > 0 ? '+' : '−'}
+      {fmtRM(Math.abs(cents), 0)}
+    </span>
+  )
+}
+
+function MobileGroupRow({ group }: { group: GroupSummary }) {
   return (
     <Link
       href={`/groups/${group.id}`}
@@ -182,13 +430,13 @@ function GroupRow({ group }: { group: GroupSummary }) {
             </span>
           </div>
         </div>
-        <BalanceBadge cents={group.youOweCents} />
+        <MobileBalanceBadge cents={group.youOweCents} />
       </div>
     </Link>
   )
 }
 
-function BalanceBadge({ cents }: { cents: number }) {
+function MobileBalanceBadge({ cents }: { cents: number }) {
   if (cents === 0) {
     return <span className="text-xs font-medium text-muted-foreground">Settled</span>
   }
@@ -196,9 +444,7 @@ function BalanceBadge({ cents }: { cents: number }) {
     return (
       <div className="text-right">
         <p className="text-[11px] font-medium text-muted-foreground">You&apos;re owed</p>
-        <p className="text-body-lg font-bold text-primary tabular-nums">
-          {fmtRM(cents, 0)}
-        </p>
+        <p className="text-body-lg font-bold text-primary tabular-nums">{fmtRM(cents, 0)}</p>
       </div>
     )
   }

@@ -8,13 +8,13 @@ import { editWin } from '@/app/actions/items'
 import { fmtRM } from '@/lib/formatters'
 import { Card } from '@/components/ui/card'
 import { ErrorBanner } from '@/components/ui/error-banner'
-import { cn } from '@/lib/utils'
+import { cn, toDate } from '@/lib/utils'
 
 interface WinItem {
   id: string
   title: string
   amountCents: number
-  resolvedAt: Date | null
+  resolvedAt: Date | string | null
   status: 'SKIPPED' | 'BOUGHT'
 }
 
@@ -24,15 +24,16 @@ interface Props {
   maxItems?: number
 }
 
-function relativeTime(date: Date): string {
-  const diff = Date.now() - date.getTime()
+function relativeTime(date: Date | string): string {
+  const d = toDate(date)
+  const diff = Date.now() - d.getTime()
   if (diff < 3_600_000) return 'Just now'
   const hours = Math.floor(diff / 3_600_000)
   if (hours < 24) return `${hours}h ago`
   const days = Math.floor(hours / 24)
   if (days === 1) return 'Yesterday'
   if (days < 7) return `${days}d ago`
-  return date.toLocaleDateString('en-MY', { month: 'short', day: 'numeric' })
+  return d.toLocaleDateString('en-MY', { month: 'short', day: 'numeric' })
 }
 
 function CheckIcon() {

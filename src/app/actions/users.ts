@@ -1,6 +1,6 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
+import { updateTag } from 'next/cache'
 import { getCurrentUser } from '@/lib/supabase/server'
 import { usersRepo } from '@/data/users.repo'
 import {
@@ -49,10 +49,10 @@ export async function updateProfile(
       usersRepo.updateProfile(user.id, { name, ...(avatarUrl && { avatarUrl }) }),
       supabase.auth.updateUser({ data: { name } }),
     ])
+
+    updateTag(`user-${user.id}`)
   }, 'action:updateProfile')
 
-  revalidatePath('/profile')
-  revalidatePath('/dashboard')
   return typeof result === 'string' ? result : null
 }
 
@@ -66,7 +66,7 @@ export async function updateNotificationPrefs(formData: FormData): Promise<void>
     notifyMilestoneUnlocked: formData.get('notifyMilestoneUnlocked') === '1',
   })
 
-  revalidatePath('/profile')
+  updateTag(`user-${user.id}`)
 }
 
 export async function saveIncomeSettings(
@@ -97,9 +97,9 @@ export async function saveIncomeSettings(
       commuteHours: getOptionalNumber(formData, 'commuteHours'),
       workCostsCents: getCents(formData, 'workCosts'),
     })
+
+    updateTag(`user-${user.id}`)
   })
 
-  revalidatePath('/settings')
-  revalidatePath('/dashboard')
   return typeof result === 'string' ? result : null
 }

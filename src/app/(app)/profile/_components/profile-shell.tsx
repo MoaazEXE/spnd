@@ -20,7 +20,7 @@ import { fmtRM } from '@/lib/formatters'
 import { Card } from '@/components/ui/card'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { MilestoneCard } from '@/components/milestones/milestone-card'
-import { cn } from '@/lib/utils'
+import { cn, toDate } from '@/lib/utils'
 import { EditProfileSheet } from './edit-profile-sheet'
 import type { MilestoneResult } from '@/core/milestones/milestones'
 
@@ -29,7 +29,7 @@ interface ActivityItem {
   title: string
   amountCents: number
   status: 'SKIPPED' | 'BOUGHT'
-  resolvedAt: Date
+  resolvedAt: Date | string
 }
 
 interface MostSkippedRow {
@@ -44,7 +44,7 @@ interface Props {
   email: string
   initial: string
   avatarUrl: string | null
-  memberSince: Date
+  memberSince: Date | string
   savedCents: number
   skippedCount: number
   boughtCount: number
@@ -74,19 +74,20 @@ function fmtHours(h: number): string {
   return `${days}d ${Math.round(h % 24)}h`
 }
 
-function relativeTime(date: Date): string {
-  const diff = Date.now() - date.getTime()
+function relativeTime(date: Date | string): string {
+  const d = toDate(date)
+  const diff = Date.now() - d.getTime()
   if (diff < 3_600_000) return 'Just now'
   const hours = Math.floor(diff / 3_600_000)
   if (hours < 24) return `${hours}h ago`
   const days = Math.floor(hours / 24)
   if (days === 1) return 'Yesterday'
   if (days < 7) return `${days}d ago`
-  return date.toLocaleDateString('en-MY', { month: 'short', day: 'numeric' })
+  return d.toLocaleDateString('en-MY', { month: 'short', day: 'numeric' })
 }
 
-function fmtMemberSince(date: Date): string {
-  return date.toLocaleDateString('en-MY', { month: 'long', year: 'numeric' })
+function fmtMemberSince(date: Date | string): string {
+  return toDate(date).toLocaleDateString('en-MY', { month: 'long', year: 'numeric' })
 }
 
 export function ProfileShell({

@@ -3,14 +3,14 @@
 import { getCoolingStatus } from '@/core/cooling/coolingState'
 import { fmtRM, fmtCountdown } from '@/lib/formatters'
 import { useTick } from '@/lib/use-tick'
-import { cn } from '@/lib/utils'
+import { cn, toDate } from '@/lib/utils'
 
 interface CoolingCardItem {
   id: string
   title: string
   amountCents: number
-  coolingUntil: Date
-  createdAt: Date
+  coolingUntil: Date | string
+  createdAt: Date | string
 }
 
 interface Props {
@@ -77,10 +77,12 @@ function CircularCountdown({ progress, isReady }: { progress: number; isReady: b
 export function CoolingCard({ item, timeCostFormatted, onResolve, size = 'sm' }: Props) {
   const now = useTick(1000)
 
-  const status = getCoolingStatus({ status: 'COOLING', coolingUntil: item.coolingUntil }, now)
+  const coolingUntil = toDate(item.coolingUntil)
+  const createdAt = toDate(item.createdAt)
+  const status = getCoolingStatus({ status: 'COOLING', coolingUntil }, now)
   const isReady = status === 'READY_TO_RESOLVE'
-  const remainingMs = Math.max(0, item.coolingUntil.getTime() - now.getTime())
-  const totalMs = item.coolingUntil.getTime() - item.createdAt.getTime()
+  const remainingMs = Math.max(0, coolingUntil.getTime() - now.getTime())
+  const totalMs = coolingUntil.getTime() - createdAt.getTime()
   const progress = totalMs > 0 ? Math.min(100, ((totalMs - remainingMs) / totalMs) * 100) : 100
 
   const readyHighlight = isReady

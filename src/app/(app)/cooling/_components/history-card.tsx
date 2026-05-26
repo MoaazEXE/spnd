@@ -7,27 +7,28 @@ import { editWin } from '@/app/actions/items'
 import { fmtRM } from '@/lib/formatters'
 import { Card } from '@/components/ui/card'
 import { ErrorBanner } from '@/components/ui/error-banner'
-import { cn } from '@/lib/utils'
+import { cn, toDate } from '@/lib/utils'
 
 interface HistoryItem {
   id: string
   title: string
   amountCents: number
   status: 'SKIPPED' | 'BOUGHT'
-  resolvedAt: Date | null
+  resolvedAt: Date | string | null
 }
 
 const INPUT =
   'w-full h-13 px-4 rounded-lg bg-background border border-border text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors'
 const LABEL = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground'
 
-function relativeDate(date: Date): string {
-  const diff = Date.now() - date.getTime()
+function relativeDate(date: Date | string): string {
+  const d = toDate(date)
+  const diff = Date.now() - d.getTime()
   const day = 86_400_000
   if (diff < day) return 'Today'
   if (diff < day * 2) return 'Yesterday'
   if (diff < day * 7) return `${Math.floor(diff / day)}d ago`
-  return date.toLocaleDateString('en-MY', { month: 'short', day: 'numeric' })
+  return d.toLocaleDateString('en-MY', { month: 'short', day: 'numeric' })
 }
 
 function EditHistorySheet({ item, onClose }: { item: HistoryItem; onClose: () => void }) {

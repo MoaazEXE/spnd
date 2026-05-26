@@ -3,7 +3,7 @@ import type { ComputedItemStatus, ItemStatus, CoolingUnit } from '@/types'
 
 interface CoolableItem {
   status: ItemStatus
-  coolingUntil: Date | null
+  coolingUntil: Date | string | null
 }
 
 export function getCoolingStatus(
@@ -12,7 +12,7 @@ export function getCoolingStatus(
 ): ComputedItemStatus {
   if (item.status !== 'COOLING') return item.status
   if (!item.coolingUntil) return 'READY_TO_RESOLVE'
-  return item.coolingUntil > now ? 'COOLING' : 'READY_TO_RESOLVE'
+  return new Date(item.coolingUntil) > now ? 'COOLING' : 'READY_TO_RESOLVE'
 }
 
 export function computeCoolingUntil(
@@ -28,6 +28,6 @@ export function computeCoolingUntil(
   return new Date(from.getTime() + ms)
 }
 
-export function getRemainingMs(coolingUntil: Date, now = new Date()): number {
-  return Math.max(0, coolingUntil.getTime() - now.getTime())
+export function getRemainingMs(coolingUntil: Date | string, now = new Date()): number {
+  return Math.max(0, new Date(coolingUntil).getTime() - now.getTime())
 }

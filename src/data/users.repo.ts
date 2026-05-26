@@ -1,9 +1,14 @@
 import { cache } from 'react'
+import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import type { TimeCostMode } from '@/types'
 
 const findByIdCached = cache(async (id: string) =>
-  prisma.user.findUnique({ where: { id } }),
+  unstable_cache(
+    async () => prisma.user.findUnique({ where: { id } }),
+    ['users-findById', id],
+    { tags: [`user-${id}`] },
+  )(),
 )
 
 export const usersRepo = {

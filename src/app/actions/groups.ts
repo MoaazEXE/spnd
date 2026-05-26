@@ -1,7 +1,7 @@
 'use server'
 
 import { redirect } from 'next/navigation'
-import { revalidatePath } from 'next/cache'
+import { updateTag } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/supabase/server'
 import { ensureUserRecord } from '@/lib/ensure-user'
@@ -31,21 +31,42 @@ async function requireActiveMembership(groupId: string, userId: string): Promise
   }
 }
 
+/**
+ * Invalidates cached data for every active member of a group plus the group's
+ * own tag. Call this after any mutation that changes group content so all
+ * members (including non-acting ones whose realtime refresh fires) get fresh data.
+ */
+async function revalidateGroupMembers(groupId: string, extraUserId?: string) {
+  const members = await prisma.groupMember.findMany({
+    where: { groupId, status: 'ACTIVE' },
+    select: { userId: true },
+  })
+  for (const { userId } of members) {
+    updateTag(`groups-user-${userId}`)
+  }
+  // Cover the acting user if they're no longer an active member (e.g. after leave/reject)
+  if (extraUserId && !members.some(m => m.userId === extraUserId)) {
+    updateTag(`groups-user-${extraUserId}`)
+  }
+  updateTag(`group-${groupId}`)
+}
+
 export async function createGroup(
   _prevState: string | null,
   formData: FormData,
 ): Promise<string | null> {
+  let userId: string | null = null
   let newId: string | null = null
   const result = await withValidation(async () => {
     const name = getRequiredString(formData, 'name')
     if (name.length > 60) throw new ValidationError('Group name is too long.')
-    const userId = await getAuthUserId()
+    userId = await getAuthUserId()
     const group = await groupsRepo.create({ name, createdBy: userId })
     newId = group.id
   }, 'action:createGroup')
 
   if (typeof result === 'string') return result
-  revalidatePath('/groups')
+  if (userId) updateTag(`groups-user-${userId}`)
   if (newId) redirect(`/groups/${newId}`)
   return null
 }
@@ -54,11 +75,13 @@ export async function inviteMemberByEmail(
   _prevState: string | null,
   formData: FormData,
 ): Promise<string | null> {
+  let inviteeId: string | null = null
+  let actingUserId: string | null = null
   const result = await withValidation(async () => {
     const groupId = getRequiredString(formData, 'groupId')
     const email = getRequiredString(formData, 'email').toLowerCase()
-    const userId = await getAuthUserId()
-    await requireActiveMembership(groupId, userId)
+    actingUserId = await getAuthUserId()
+    await requireActiveMembership(groupId, actingUserId)
 
     const invitee = await prisma.user.findUnique({ where: { email } })
     if (!invitee) {
@@ -66,7 +89,7 @@ export async function inviteMemberByEmail(
         "We can't find anyone with that email yet. Ask them to sign up first.",
       )
     }
-    if (invitee.id === userId) {
+    if (invitee.id === actingUserId) {
       throw new ValidationError("You're already in this group.")
     }
 
@@ -80,13 +103,15 @@ export async function inviteMemberByEmail(
       throw new ValidationError("They already have a pending invite.")
     }
 
-    await groupsRepo.inviteMember(groupId, invitee.id, userId)
+    inviteeId = invitee.id
+    await groupsRepo.inviteMember(groupId, invitee.id, actingUserId)
   })
 
   if (typeof result === 'string') return result
-  const groupId = formData.get('groupId')
-  if (typeof groupId === 'string') revalidatePath(`/groups/${groupId}`)
-  revalidatePath('/groups')
+  const groupId = formData.get('groupId') as string
+  // Invitee sees the new pending invite; existing members see updated member count
+  if (inviteeId) updateTag(`groups-user-${inviteeId}`)
+  updateTag(`group-${groupId}`)
   return null
 }
 
@@ -100,9 +125,8 @@ export async function acceptInvite(formData: FormData): Promise<void> {
     throw new ValidationError('No pending invite for this group.')
   }
   await groupsRepo.acceptInvite(groupId, userId)
-  revalidatePath('/groups')
-  revalidatePath(`/groups/${groupId}`)
-  revalidatePath('/dashboard')
+  // Revalidate all members (new member joins — everyone's group data changes)
+  await revalidateGroupMembers(groupId, userId)
 }
 
 export async function transferOwnership(formData: FormData): Promise<void> {
@@ -130,8 +154,7 @@ export async function transferOwnership(formData: FormData): Promise<void> {
     data: { createdBy: newOwnerId },
   })
 
-  revalidatePath(`/groups/${groupId}`)
-  revalidatePath('/groups')
+  await revalidateGroupMembers(groupId)
 }
 
 export async function leaveGroup(formData: FormData): Promise<void> {
@@ -150,12 +173,22 @@ export async function leaveGroup(formData: FormData): Promise<void> {
     )
   }
 
+  // Capture remaining members before removal so we can revalidate them
+  const remainingMembers = await prisma.groupMember.findMany({
+    where: { groupId, status: 'ACTIVE', NOT: { userId } },
+    select: { userId: true },
+  })
+
   await prisma.groupMember.delete({
     where: { groupId_userId: { groupId, userId } },
   })
 
-  revalidatePath('/groups')
-  revalidatePath('/dashboard')
+  // Revalidate leaving user + remaining members
+  updateTag(`groups-user-${userId}`)
+  for (const { userId: memberId } of remainingMembers) {
+    updateTag(`groups-user-${memberId}`)
+  }
+  updateTag(`group-${groupId}`)
   redirect('/groups')
 }
 
@@ -171,12 +204,20 @@ export async function deleteGroup(formData: FormData): Promise<void> {
     throw new ValidationError('Only the creator can delete a group.')
   }
 
+  // Capture all members before the cascade delete removes them
+  const members = await prisma.groupMember.findMany({
+    where: { groupId, status: 'ACTIVE' },
+    select: { userId: true },
+  })
+
   // Cascades drop members, expenses, shares. Items lose their groupId
   // (onDelete: SetNull) so personal cooling history survives.
   await prisma.group.delete({ where: { id: groupId } })
 
-  revalidatePath('/groups')
-  revalidatePath('/dashboard')
+  for (const { userId: memberId } of members) {
+    updateTag(`groups-user-${memberId}`)
+  }
+  updateTag(`group-${groupId}`)
   redirect('/groups')
 }
 
@@ -188,12 +229,10 @@ export async function rejectInvite(formData: FormData): Promise<void> {
   })
   if (!invite || invite.status !== 'PENDING') return
   await groupsRepo.rejectInvite(groupId, userId)
-  revalidatePath('/groups')
-  revalidatePath('/dashboard')
+  updateTag(`groups-user-${userId}`)
 }
 
 function parseParticipants(formData: FormData): string[] {
-  // Form sends multiple <input name="participants" value="<userId>"> entries.
   const all = formData.getAll('participants')
   return all
     .filter((v): v is string => typeof v === 'string' && v.length > 0)
@@ -204,8 +243,9 @@ export async function addExpense(
   _prevState: string | null,
   formData: FormData,
 ): Promise<string | null> {
+  let groupId: string | null = null
   const result = await withValidation(async () => {
-    const groupId = getRequiredString(formData, 'groupId')
+    groupId = getRequiredString(formData, 'groupId')
     const description = getRequiredString(formData, 'description')
     const amountCents = getRequiredCents(formData, 'amount')
     const userId = await getAuthUserId()
@@ -247,8 +287,7 @@ export async function addExpense(
   })
 
   if (typeof result === 'string') return result
-  const groupId = formData.get('groupId')
-  if (typeof groupId === 'string') revalidatePath(`/groups/${groupId}`)
+  if (groupId) await revalidateGroupMembers(groupId)
   return null
 }
 
@@ -333,8 +372,7 @@ export async function editExpense(
   })
 
   if (typeof result === 'string') return result
-  if (groupIdForRevalidate) revalidatePath(`/groups/${groupIdForRevalidate}`)
-  revalidatePath('/groups')
+  if (groupIdForRevalidate) await revalidateGroupMembers(groupIdForRevalidate)
   return null
 }
 
@@ -343,8 +381,7 @@ export async function deleteExpense(formData: FormData): Promise<void> {
   const userId = await getAuthUserId()
   const expense = await requireExpenseAccess(expenseId, userId)
   await prisma.expense.delete({ where: { id: expenseId } })
-  revalidatePath(`/groups/${expense.groupId}`)
-  revalidatePath('/groups')
+  await revalidateGroupMembers(expense.groupId)
 }
 
 export async function resplitExpense(formData: FormData): Promise<void> {
@@ -361,7 +398,7 @@ export async function resplitExpense(formData: FormData): Promise<void> {
       data: { shares: { create: shares } },
     }),
   ])
-  revalidatePath(`/groups/${expense.groupId}`)
+  await revalidateGroupMembers(expense.groupId)
 }
 
 export async function resplitAll(formData: FormData): Promise<void> {
@@ -396,8 +433,7 @@ export async function resplitAll(formData: FormData): Promise<void> {
     }),
   )
 
-  revalidatePath(`/groups/${groupId}`)
-  revalidatePath('/groups')
+  await revalidateGroupMembers(groupId)
   redirect(`/groups/${groupId}`)
 }
 
@@ -416,9 +452,6 @@ export async function settleGroup(formData: FormData): Promise<void> {
     redirect(`/groups/${groupId}`)
   }
 
-  // Recompute the plan server-side and only record rows the client confirmed,
-  // and only those the current user is allowed to confirm (payer = themselves,
-  // OR recipient = themselves with explicit confirm-received).
   const expenses = await expensesRepo.findByGroup(groupId)
   const plan = settlementPlan(expenses)
 
@@ -447,8 +480,6 @@ export async function settleGroup(formData: FormData): Promise<void> {
     ),
   )
 
-  revalidatePath(`/groups/${groupId}`)
-  revalidatePath('/groups')
+  await revalidateGroupMembers(groupId)
   redirect(`/groups/${groupId}`)
 }
-

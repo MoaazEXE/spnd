@@ -1,4 +1,5 @@
 import { cache } from 'react'
+import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 
 const groupInclude = {
@@ -21,45 +22,56 @@ const groupInclude = {
   },
 }
 
-/**
- * Per-request: every group the user has ACTIVELY joined, with members,
- * expenses, shares, and skipped items preloaded. Pending invites live
- * separately — see findPendingInvitesByUser.
- */
 const findManyByUserDeepCached = cache(async (userId: string) =>
-  prisma.group.findMany({
-    where: { members: { some: { userId, status: 'ACTIVE' } } },
-    orderBy: { createdAt: 'desc' },
-    include: groupInclude,
-  }),
+  unstable_cache(
+    async () =>
+      prisma.group.findMany({
+        where: { members: { some: { userId, status: 'ACTIVE' } } },
+        orderBy: { createdAt: 'desc' },
+        include: groupInclude,
+      }),
+    ['groups-findManyByUserDeep', userId],
+    { tags: [`groups-user-${userId}`] },
+  )(),
 )
 
 /** Single group with the same deep shape, gated by ACTIVE membership. */
-const findByIdDeepCached = cache(async (id: string, userId: string) => {
-  const group = await prisma.group.findUnique({
-    where: { id },
-    include: groupInclude,
-  })
-  if (!group) return null
-  if (!group.members.some(m => m.userId === userId)) return null
-  return group
-})
+const findByIdDeepCached = cache(async (id: string, userId: string) =>
+  unstable_cache(
+    async () => {
+      const group = await prisma.group.findUnique({
+        where: { id },
+        include: groupInclude,
+      })
+      if (!group) return null
+      if (!group.members.some(m => m.userId === userId)) return null
+      return group
+    },
+    ['groups-findByIdDeep', id, userId],
+    { tags: [`groups-user-${userId}`, `group-${id}`] },
+  )(),
+)
 
 /** Pending invites for the current user — used by the bell + /groups banner. */
 const findPendingInvitesByUserCached = cache(async (userId: string) =>
-  prisma.groupMember.findMany({
-    where: { userId, status: 'PENDING' },
-    orderBy: { joinedAt: 'desc' },
-    include: {
-      group: {
-        select: {
-          id: true,
-          name: true,
-          _count: { select: { members: { where: { status: 'ACTIVE' } } } },
+  unstable_cache(
+    async () =>
+      prisma.groupMember.findMany({
+        where: { userId, status: 'PENDING' },
+        orderBy: { joinedAt: 'desc' },
+        include: {
+          group: {
+            select: {
+              id: true,
+              name: true,
+              _count: { select: { members: { where: { status: 'ACTIVE' } } } },
+            },
+          },
         },
-      },
-    },
-  }),
+      }),
+    ['groups-findPendingInvitesByUser', userId],
+    { tags: [`groups-user-${userId}`] },
+  )(),
 )
 
 export const groupsRepo = {
@@ -89,7 +101,7 @@ export const groupsRepo = {
     return prisma.groupMember.upsert({
       where: { groupId_userId: { groupId, userId } },
       create: { groupId, userId, status: 'PENDING', invitedBy },
-      update: {}, // existing membership unchanged
+      update: {},
     })
   },
 
@@ -107,7 +119,11 @@ export const groupsRepo = {
   },
 
   countByUser: cache(async (userId: string) =>
-    prisma.groupMember.count({ where: { userId, status: 'ACTIVE' } }),
+    unstable_cache(
+      async () => prisma.groupMember.count({ where: { userId, status: 'ACTIVE' } }),
+      ['groups-countByUser', userId],
+      { tags: [`groups-user-${userId}`] },
+    )(),
   ),
 
   async searchByUser(userId: string, query: string, limit = 5) {
@@ -168,7 +184,11 @@ export const groupsRepo = {
   },
 
   countPendingInvitesByUser: cache(async (userId: string) =>
-    prisma.groupMember.count({ where: { userId, status: 'PENDING' } }),
+    unstable_cache(
+      async () => prisma.groupMember.count({ where: { userId, status: 'PENDING' } }),
+      ['groups-countPendingInvitesByUser', userId],
+      { tags: [`groups-user-${userId}`] },
+    )(),
   ),
 } as const
 

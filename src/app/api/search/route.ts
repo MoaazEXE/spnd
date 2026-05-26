@@ -26,7 +26,7 @@ export async function GET(req: Request) {
         title: i.title,
         amountCents: i.amountCents,
         status: i.status,
-        coolingUntil: i.coolingUntil.toISOString(),
+        coolingUntil: new Date(i.coolingUntil).toISOString(),
       })),
       groups: [],
       members: [],
@@ -49,7 +49,7 @@ export async function GET(req: Request) {
       title: i.title,
       amountCents: i.amountCents,
       status: i.status,
-      coolingUntil: i.coolingUntil.toISOString(),
+      coolingUntil: new Date(i.coolingUntil).toISOString(),
     })),
     groups: groups.map(g => ({
       id: g.id,

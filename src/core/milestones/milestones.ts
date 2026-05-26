@@ -1,6 +1,6 @@
 export interface MilestoneInputs {
   /** All skipped items (status = SKIPPED) */
-  skippedItems: Array<{ amountCents: number; coolingUntil: Date; createdAt?: Date; resolvedAt: Date | null }>
+  skippedItems: Array<{ amountCents: number; coolingUntil: Date | string; createdAt?: Date | string; resolvedAt: Date | string | null }>
   /** All bought items (status = BOUGHT) */
   boughtItems: Array<{ amountCents: number }>
   /** Total cents saved across all time */
@@ -51,7 +51,7 @@ export function computeMilestones(inputs: MilestoneInputs): MilestoneResult {
         0,
         ...skippedItems.map(i => {
           if (!i.createdAt) return 0
-          return Math.floor((i.coolingUntil.getTime() - i.createdAt.getTime()) / 86_400_000)
+          return Math.floor((new Date(i.coolingUntil).getTime() - new Date(i.createdAt).getTime()) / 86_400_000)
         }),
       )
     : 0

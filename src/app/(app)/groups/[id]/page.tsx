@@ -46,7 +46,7 @@ export default async function GroupPage({ params }: PageProps) {
     id: m.user.id,
     name: m.userId === ctx.id ? `${m.user.name} (you)` : m.user.name,
     avatarUrl: m.user.avatarUrl,
-    joinedAt: m.joinedAt.toISOString(),
+    joinedAt: new Date(m.joinedAt).toISOString(),
     balanceCents: balances.get(m.userId) ?? 0,
   }))
 
@@ -67,7 +67,7 @@ export default async function GroupPage({ params }: PageProps) {
       payerId: e.payerId,
       payerName: payerLabel,
       shareCount: e.shares.length,
-      createdAt: e.createdAt.toISOString(),
+      createdAt: new Date(e.createdAt).toISOString(),
     }
   })
 

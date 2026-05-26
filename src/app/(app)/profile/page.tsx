@@ -29,7 +29,7 @@ export default async function ProfilePage() {
   const summaryQuarter = summarizeSkipped(skippedItems, 90)
   const summaryPrevQuarter = summarizeSkipped(
     skippedItems.filter(i => {
-      const t = i.resolvedAt?.getTime() ?? 0
+      const t = i.resolvedAt ? new Date(i.resolvedAt).getTime() : 0
       const now = Date.now()
       return t >= now - 180 * 86_400_000 && t < now - 90 * 86_400_000
     }),
@@ -89,7 +89,7 @@ export default async function ProfilePage() {
     ...boughtItems.map(i => ({ ...i, status: 'BOUGHT' as const })),
   ]
     .filter(i => i.resolvedAt)
-    .sort((a, b) => (b.resolvedAt?.getTime() ?? 0) - (a.resolvedAt?.getTime() ?? 0))
+    .sort((a, b) => (b.resolvedAt ? new Date(b.resolvedAt).getTime() : 0) - (a.resolvedAt ? new Date(a.resolvedAt).getTime() : 0))
     .slice(0, 5)
 
   const hourlyWageCents = dbUser?.monthlyIncomeCents && dbUser.workingHoursPerWeek
@@ -128,7 +128,7 @@ export default async function ProfilePage() {
       mostSkipped={mostSkipped}
       quarterSavedCents={thisQTotal}
       quarterSkippedCount={skippedItems.filter(i => {
-        const t = i.resolvedAt?.getTime() ?? 0
+        const t = i.resolvedAt ? new Date(i.resolvedAt).getTime() : 0
         return t >= Date.now() - 90 * 86_400_000
       }).length}
       quarterVsPrevPct={quarterVsPrev}
