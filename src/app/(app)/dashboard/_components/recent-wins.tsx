@@ -264,7 +264,7 @@ export function RecentWins({ skippedItems, boughtItems, maxItems = 3 }: Props) {
           Recent activity
         </p>
         <Link
-          href="/profile"
+          href="/cooling"
           prefetch
           className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
         >
