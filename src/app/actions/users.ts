@@ -21,26 +21,43 @@ export async function updateProfile(
     const user = await getCurrentUser()
     if (!user) throw new ValidationError('Unauthorized')
 
+    // Guarantee the DB row exists — Google OAuth users may have a valid session
+    // but no Prisma row if ensureUserRecord failed silently in the auth callback.
+    const { ensureUserRecord } = await import('@/lib/ensure-user')
+    await ensureUserRecord(user).catch(() => {})
+
     const name = getRequiredString(formData, 'name')
     if (name.length > 60) throw new ValidationError('Name is too long (60 max).')
 
     const { createClient } = await import('@/lib/supabase/server')
     const supabase = await createClient()
 
-    // Avatar upload — stored in Supabase Storage bucket "avatars"
+    // Avatar upload — uses service-role client to bypass bucket RLS on the server
     const avatarFile = formData.get('avatar')
     let avatarUrl: string | undefined
     if (avatarFile instanceof File && avatarFile.size > 0) {
       if (avatarFile.size > 2 * 1024 * 1024) throw new ValidationError('Avatar must be under 2 MB.')
-      const ext = avatarFile.name.split('.').pop() ?? 'jpg'
-      const path = `${user.id}/avatar.${ext}`
-      const { error } = await supabase.storage
+      const path = `${user.id}/avatar.jpg`
+
+      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+      if (!serviceKey) throw new ValidationError('Storage is not configured.')
+      const { createClient: createAdmin } = await import('@supabase/supabase-js')
+      const adminStorage = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceKey)
+
+      // Remove any old avatar files before uploading
+      await adminStorage.storage
         .from('avatars')
-        .upload(path, avatarFile, { upsert: true, contentType: avatarFile.type })
-      if (!error) {
-        const { data } = supabase.storage.from('avatars').getPublicUrl(path)
-        avatarUrl = data.publicUrl
-      }
+        .remove([`${user.id}/avatar.jpg`, `${user.id}/avatar.png`, `${user.id}/avatar.jpeg`, `${user.id}/avatar.webp`])
+        .catch(() => {})
+
+      const { error } = await adminStorage.storage
+        .from('avatars')
+        .upload(path, avatarFile, { upsert: true, contentType: 'image/jpeg' })
+      if (error) throw new ValidationError(`Upload failed: ${error.message}`)
+
+      const { data } = adminStorage.storage.from('avatars').getPublicUrl(path)
+      // Append version param so browsers fetch the new image instead of serving cache
+      avatarUrl = `${data.publicUrl}?v=${Date.now()}`
     }
 
     // Update Prisma row and Supabase user_metadata in parallel.

@@ -73,31 +73,58 @@ export async function signOut() {
 }
 
 export async function deleteAccount(): Promise<string | null> {
+  let userId: string
+
+  // Step 1: verify auth and service-role key — fail fast before touching anything
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!serviceKey) return 'Account deletion is not configured. Contact support.'
+
   try {
     const { verifyAuthUser } = await import('@/lib/supabase/server')
     const user = await verifyAuthUser()
     if (!user) return 'Not authenticated.'
-
-    const { prisma } = await import('@/lib/prisma')
-    await prisma.user.delete({ where: { id: user.id } })
-
-    // Delete from Supabase Auth via service-role client
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    if (serviceKey) {
-      const { createClient: createAdminClient } = await import('@supabase/supabase-js')
-      const admin = createAdminClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        serviceKey,
-      )
-      await admin.auth.admin.deleteUser(user.id)
-    }
-
-    const supabase = await createClient()
-    await supabase.auth.signOut()
+    userId = user.id
   } catch (err) {
     const { logError } = await import('@/lib/log-error')
-    await logError('action:deleteAccount', {}, err)
+    await logError('action:deleteAccount:verify', {}, err)
+    return 'Not authenticated.'
+  }
+
+  // Step 2: delete the DB row — the only critical step
+  // Group.creator and Expense.payer have no onDelete cascade in the schema,
+  // so we must remove them manually before deleting the user.
+  try {
+    const { prisma } = await import('@/lib/prisma')
+
+    // Deleting groups cascades their members, expenses, and expense shares
+    await prisma.group.deleteMany({ where: { createdBy: userId } })
+    // Remove any expenses paid by this user in groups they didn't create
+    await prisma.expense.deleteMany({ where: { payerId: userId } })
+    // Now the user row can be safely deleted (Items, GroupMember, ExpenseShare cascade)
+    await prisma.user.delete({ where: { id: userId } })
+  } catch (err) {
+    const { logError } = await import('@/lib/log-error')
+    await logError('action:deleteAccount:prisma', { userId }, err)
     return 'Failed to delete account. Please try again.'
+  }
+
+  // Steps 3-5 are best-effort — don't let them block the redirect
+  const supabase = await createClient()
+
+  await supabase.storage
+    .from('avatars')
+    .remove([`${userId}/avatar.jpg`, `${userId}/avatar.png`, `${userId}/avatar.jpeg`, `${userId}/avatar.webp`])
+    .catch(() => {})
+
+  await supabase.auth.signOut().catch(() => {})
+
+  try {
+    const { createClient: createAdminClient } = await import('@supabase/supabase-js')
+    const admin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceKey)
+    await admin.auth.admin.deleteUser(userId)
+  } catch (err) {
+    const { logError } = await import('@/lib/log-error')
+    await logError('action:deleteAccount:authDelete', { userId }, err)
   }
 
   redirect('/')
