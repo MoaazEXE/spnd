@@ -138,7 +138,7 @@ export function NotificationBell({ items, invites }: Props) {
                             type="button"
                             onClick={() => handleReject(inv.groupId)}
                             disabled={!!busy}
-                            className="flex-1 h-9 rounded-md text-xs font-semibold text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                            className="flex-1 h-11 lg:h-9 rounded-md text-xs font-semibold text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
                           >
                             {busy ? '…' : 'Reject'}
                           </button>
@@ -146,7 +146,7 @@ export function NotificationBell({ items, invites }: Props) {
                             type="button"
                             onClick={() => handleAccept(inv.groupId)}
                             disabled={!!busy}
-                            className="flex-1 h-9 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary-deep transition-colors disabled:opacity-50"
+                            className="flex-1 h-11 lg:h-9 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary-deep transition-colors disabled:opacity-50"
                           >
                             {busy ? '…' : 'Accept'}
                           </button>

@@ -78,13 +78,13 @@ function EditHistorySheet({ item, onClose }: { item: HistoryItem; onClose: () =>
         <div className="flex items-center px-5 py-3">
           <button
             onClick={onClose}
-            className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted transition-colors"
+            className="w-11 h-11 lg:w-9 lg:h-9 flex items-center justify-center rounded-full hover:bg-muted transition-colors"
             aria-label="Close"
           >
             <X size={18} strokeWidth={2} className="text-muted-foreground" />
           </button>
           <h2 className="flex-1 text-center text-base font-semibold tracking-tight">Edit entry</h2>
-          <div className="w-9" />
+          <div className="w-11 lg:w-9" />
         </div>
 
         <div className="px-5 pb-8 space-y-4">

@@ -98,12 +98,12 @@ export function SheetFrame({ title, onClose, children, footer, size = 'auto' }: 
             type="button"
             onClick={animateClose}
             aria-label="Close"
-            className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted transition-colors"
+            className="w-11 h-11 lg:w-9 lg:h-9 flex items-center justify-center rounded-full hover:bg-muted transition-colors"
           >
             <X size={18} strokeWidth={2} className="text-muted-foreground" />
           </button>
           <h2 className="flex-1 text-center text-base font-semibold tracking-tight">{title}</h2>
-          <div className="w-9" />
+          <div className="w-11 lg:w-9" />
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto">{children}</div>

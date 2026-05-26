@@ -98,7 +98,7 @@ export function ConfirmDialog(props: Props) {
           onClick={onCancel}
           disabled={busy}
           aria-label="Close"
-          className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
+          className="absolute top-2 right-2 w-11 h-11 lg:w-9 lg:h-9 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
         >
           <X size={16} strokeWidth={2} />
         </button>

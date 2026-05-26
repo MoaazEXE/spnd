@@ -3,8 +3,33 @@
 import { revalidatePath } from 'next/cache'
 import { getCurrentUser } from '@/lib/supabase/server'
 import { usersRepo } from '@/data/users.repo'
-import { getCents, getOptionalNumber, getString, ValidationError, withValidation } from '@/lib/form-data'
+import {
+  getCents,
+  getOptionalNumber,
+  getRequiredString,
+  getString,
+  ValidationError,
+  withValidation,
+} from '@/lib/form-data'
 import type { TimeCostMode } from '@/types'
+
+export async function updateProfile(
+  _prevState: string | null,
+  formData: FormData,
+): Promise<string | null> {
+  const result = await withValidation(async () => {
+    const user = await getCurrentUser()
+    if (!user) throw new ValidationError('Unauthorized')
+
+    const name = getRequiredString(formData, 'name')
+    if (name.length > 60) throw new ValidationError('Name is too long (60 max).')
+    await usersRepo.updateName(user.id, name)
+  })
+
+  revalidatePath('/profile')
+  revalidatePath('/dashboard')
+  return typeof result === 'string' ? result : null
+}
 
 export async function saveIncomeSettings(
   _prevState: string | null,

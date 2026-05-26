@@ -64,7 +64,7 @@ export function GroupDetailShell({
           type="button"
           onClick={() => setInviting(true)}
           aria-label="Invite member"
-          className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-foreground/5 transition-colors"
+          className="w-11 h-11 lg:w-9 lg:h-9 rounded-full flex items-center justify-center hover:bg-foreground/5 transition-colors"
         >
           <UserPlus size={18} strokeWidth={1.8} className="text-foreground" />
         </button>
@@ -102,7 +102,7 @@ export function GroupDetailShell({
             <Link
               href={`/groups/${groupId}/settle`}
               prefetch
-              className="inline-flex items-center px-3.5 h-9 rounded-lg border border-border bg-background text-xs font-semibold text-foreground hover:bg-muted transition-colors"
+              className="inline-flex items-center px-3.5 h-11 lg:h-9 rounded-lg border border-border bg-background text-xs font-semibold text-foreground hover:bg-muted transition-colors"
             >
               {youBalanceCents > 0
                 ? `You're owed ${fmtRM(youBalanceCents, 0)}`
@@ -111,7 +111,7 @@ export function GroupDetailShell({
             <Link
               href={`/groups/${groupId}/settle`}
               prefetch
-              className="inline-flex items-center px-3.5 h-9 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary-deep transition-colors"
+              className="inline-flex items-center px-3.5 h-11 lg:h-9 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary-deep transition-colors"
             >
               Settle up
             </Link>

@@ -1,11 +1,26 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, ArrowRight, LogOut, Users, ChevronRight } from 'lucide-react'
+import {
+  ArrowLeft,
+  ArrowRight,
+  LogOut,
+  Users,
+  ChevronRight,
+  Pencil,
+  Award,
+  Bell,
+  Tag,
+  Download,
+  CalendarRange,
+} from 'lucide-react'
 import { signOut } from '@/app/actions/auth'
 import { fmtRM } from '@/lib/formatters'
 import { Card } from '@/components/ui/card'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { cn } from '@/lib/utils'
+import { EditProfileSheet } from './edit-profile-sheet'
 
 interface ActivityItem {
   id: string
@@ -72,45 +87,43 @@ export function ProfileShell({
   lifeHours,
   recentActivity,
 }: Props) {
+  const [editing, setEditing] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+
   return (
     <div className="pb-8 lg:pb-16">
       {/* ═══ HERO BANNER ═══ */}
       <div className="relative">
         <div className="relative overflow-hidden">
-          {/* Layered background */}
           <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary-deep to-[#18403D]" />
           <div className="absolute -top-44 -right-24 w-[540px] h-[540px] rounded-full bg-[radial-gradient(circle,_rgba(201,169,97,0.22),_transparent_65%)]" />
           <div className="absolute -bottom-48 -left-28 w-[440px] h-[440px] rounded-full bg-[radial-gradient(circle,_rgba(255,255,255,0.06),_transparent_65%)]" />
-          {/* Dot grain */}
           <div
             className="absolute inset-0 opacity-[0.18]"
             style={{
-              backgroundImage: 'radial-gradient(rgba(255,255,255,0.4) 0.6px, transparent 0.6px)',
+              backgroundImage:
+                'radial-gradient(rgba(255,255,255,0.4) 0.6px, transparent 0.6px)',
               backgroundSize: '14px 14px',
             }}
           />
 
           <div className="relative z-[1] px-5 lg:px-12 pt-6 lg:pt-12 pb-16 lg:pb-[56px]">
-            {/* Mobile back button */}
             <Link
               href="/dashboard"
-              className="lg:hidden inline-flex items-center gap-1.5 mb-4 text-xs font-medium text-white/60 hover:text-white/80 transition-colors"
+              className="lg:hidden inline-flex items-center gap-1.5 mb-4 min-h-11 -ml-1 pl-1 pr-2 text-xs font-medium text-white/60 hover:text-white/80 transition-colors"
             >
               <ArrowLeft size={16} strokeWidth={2} />
               Dashboard
             </Link>
 
             <div className="flex items-start gap-4 lg:gap-8">
-              {/* Avatar */}
               <div className="relative flex-shrink-0">
                 <div className="w-20 h-20 lg:w-[132px] lg:h-[132px] rounded-full bg-gradient-to-br from-gold to-gold-deep text-white flex items-center justify-center font-display text-4xl lg:text-[64px] font-medium shadow-[0_0_0_6px_rgba(255,255,255,0.08),_0_20px_50px_rgba(0,0,0,0.25)] tracking-tight">
                   {initial}
                 </div>
-                {/* Online dot */}
                 <div className="absolute bottom-1 right-1 lg:bottom-2 lg:right-2 w-4 h-4 lg:w-[22px] lg:h-[22px] rounded-full bg-[#7AB87E] shadow-[0_0_0_3px_#1F4744] lg:shadow-[0_0_0_4px_#1F4744]" />
               </div>
 
-              {/* Name + meta */}
               <div className="flex-1 min-w-0 text-white">
                 <p className="text-[11px] font-semibold text-white/55 uppercase tracking-[1.4px]">
                   Member since {fmtMemberSince(memberSince)}
@@ -142,17 +155,26 @@ export function ProfileShell({
 
               {/* Desktop actions */}
               <div className="hidden lg:flex flex-col gap-2.5 items-end">
-                <Link
-                  href="/settings"
-                  className="h-10 px-[18px] rounded-xl bg-white/[0.14] backdrop-blur-sm text-white text-[13px] font-semibold inline-flex items-center gap-2 hover:bg-white/[0.22] transition-colors"
+                <button
+                  type="button"
+                  onClick={() => setEditing(true)}
+                  className="h-11 px-[18px] rounded-xl bg-white/[0.14] backdrop-blur-sm text-white text-[13px] font-semibold inline-flex items-center gap-2 hover:bg-white/[0.22] transition-colors"
                 >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path d="M14 4l6 6-11 11H3v-6L14 4z" stroke="#fff" strokeWidth="1.8" strokeLinejoin="round" />
-                  </svg>
-                  Edit income
-                </Link>
+                  <Pencil size={14} strokeWidth={1.8} />
+                  Edit profile
+                </button>
               </div>
             </div>
+
+            {/* Mobile Edit profile button */}
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="lg:hidden mt-5 inline-flex items-center gap-1.5 h-11 px-4 rounded-lg bg-white/[0.14] backdrop-blur-sm text-white text-xs font-semibold hover:bg-white/[0.22] transition-colors"
+            >
+              <Pencil size={14} strokeWidth={1.8} />
+              Edit profile
+            </button>
           </div>
         </div>
 
@@ -184,9 +206,8 @@ export function ProfileShell({
       {/* ═══ MAIN CONTENT ═══ */}
       <div className="px-5 lg:px-12 pt-8 lg:pt-10">
         <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-6 lg:gap-8">
-          {/* LEFT COLUMN — Personal records */}
+          {/* LEFT COLUMN — Personal records + Milestones + Most skipped + This quarter */}
           <div className="space-y-8">
-            {/* Personal records */}
             <section>
               <h2 className="mb-4 font-display text-2xl font-medium tracking-tight text-foreground">
                 Personal records
@@ -214,7 +235,12 @@ export function ProfileShell({
               </Card>
             </section>
 
-            {/* Mobile-only info card */}
+            <MilestonesSection savedCents={savedCents} skippedCount={skippedCount} />
+
+            <MostSkippedSection />
+
+            <ThisQuarterSection />
+
             <section className="lg:hidden">
               <Card padding="none">
                 <div className="px-5 py-4 flex items-center gap-3 border-b border-sep">
@@ -234,9 +260,8 @@ export function ProfileShell({
             </section>
           </div>
 
-          {/* RIGHT COLUMN — Activity + Account */}
+          {/* RIGHT COLUMN — Recent activity + Notifications + Data + Account */}
           <div className="space-y-8">
-            {/* Recent activity */}
             <section>
               <div className="flex items-baseline justify-between mb-4">
                 <h2 className="font-display text-2xl font-medium tracking-tight text-foreground">
@@ -301,7 +326,10 @@ export function ProfileShell({
               </Card>
             </section>
 
-            {/* Account */}
+            <NotificationsSection />
+
+            <DataSection />
+
             <section>
               <h2 className="mb-4 font-display text-2xl font-medium tracking-tight text-foreground">
                 Account
@@ -309,7 +337,7 @@ export function ProfileShell({
               <Card padding="none">
                 <Link
                   href="/settings"
-                  className="flex items-center gap-3.5 px-5 py-4 border-b border-sep hover:bg-foreground/[0.025] transition-colors"
+                  className="flex items-center gap-3.5 px-5 py-4 min-h-[60px] border-b border-sep hover:bg-foreground/[0.025] transition-colors"
                 >
                   <div className="flex-1">
                     <p className="text-[13px] font-semibold text-foreground">Income settings</p>
@@ -322,7 +350,7 @@ export function ProfileShell({
                 <form action={signOut}>
                   <button
                     type="submit"
-                    className="w-full flex items-center gap-3.5 px-5 py-4 border-b border-sep text-left hover:bg-foreground/[0.025] transition-colors"
+                    className="w-full flex items-center gap-3.5 px-5 py-4 min-h-[60px] border-b border-sep text-left hover:bg-foreground/[0.025] transition-colors"
                   >
                     <div className="flex-1">
                       <p className="text-[13px] font-semibold text-foreground">Log out</p>
@@ -333,13 +361,8 @@ export function ProfileShell({
                 </form>
                 <button
                   type="button"
-                  className="w-full flex items-center gap-3.5 px-5 py-4 text-left hover:bg-foreground/[0.025] transition-colors"
-                  onClick={() => {
-                    // Placeholder — would open confirm dialog in a future pass
-                    if (window.confirm('Are you sure? This cannot be undone.')) {
-                      alert('Account deletion would be handled server-side.')
-                    }
-                  }}
+                  className="w-full flex items-center gap-3.5 px-5 py-4 min-h-[60px] text-left hover:bg-foreground/[0.025] transition-colors"
+                  onClick={() => setConfirmingDelete(true)}
                 >
                   <div className="flex-1">
                     <p className="text-[13px] font-semibold text-coral-deep">Delete account</p>
@@ -354,11 +377,330 @@ export function ProfileShell({
           </div>
         </div>
       </div>
+
+      {editing && (
+        <EditProfileSheet
+          initialName={name}
+          email={email}
+          onClose={() => setEditing(false)}
+        />
+      )}
+
+      <ConfirmDialog
+        open={confirmingDelete}
+        title="Delete your account?"
+        description="This permanently removes your account, every cooling item, and every expense you've recorded. Group members will see your name swap to 'Removed user'."
+        confirmLabel="Delete account"
+        destructive
+        requireText="DELETE"
+        onCancel={() => setConfirmingDelete(false)}
+        onConfirm={() => {
+          setConfirmingDelete(false)
+          // Server-side deletion lands in a future sprint — placeholder for now.
+          alert('Account deletion will be wired up after submission.')
+        }}
+      />
     </div>
   )
 }
 
-/* ─── Sub-components ─── */
+/* ─── Mock sections (UI shipped; data wiring is "still mock") ─── */
+
+function MockBadge() {
+  return (
+    <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-gold-tint text-gold-deep text-[10px] font-semibold uppercase tracking-wide">
+      Still mock
+    </span>
+  )
+}
+
+function MilestonesSection({
+  savedCents,
+  skippedCount,
+}: {
+  savedCents: number
+  skippedCount: number
+}) {
+  // Threshold visuals are real-ish but the badge set is mock placeholder.
+  const items = [
+    {
+      icon: Award,
+      label: 'First save',
+      caption: 'Skipped your first temptation',
+      unlocked: skippedCount >= 1,
+    },
+    {
+      icon: Award,
+      label: 'Saved RM 100',
+      caption: 'Crossed your first hundred',
+      unlocked: savedCents >= 10_000,
+    },
+    {
+      icon: Award,
+      label: 'Saved RM 1,000',
+      caption: 'Four figures in pause',
+      unlocked: savedCents >= 100_000,
+    },
+    {
+      icon: Award,
+      label: '10-day streak',
+      caption: 'Mock — streak tracking lands later',
+      unlocked: false,
+    },
+  ]
+  return (
+    <section>
+      <h2 className="mb-4 font-display text-2xl font-medium tracking-tight text-foreground inline-flex items-center">
+        Milestones
+        <MockBadge />
+      </h2>
+      <div className="grid grid-cols-2 gap-3">
+        {items.map(m => {
+          const Icon = m.icon
+          return (
+            <div
+              key={m.label}
+              className={cn(
+                'rounded-2xl p-4 transition-all',
+                m.unlocked
+                  ? 'bg-card shadow-card border border-primary-soft'
+                  : 'bg-muted/40 border border-dashed border-sep-strong opacity-70',
+              )}
+            >
+              <div
+                className={cn(
+                  'w-10 h-10 rounded-lg flex items-center justify-center mb-2.5',
+                  m.unlocked ? 'bg-gold-tint text-gold-deep' : 'bg-card text-subtle-foreground',
+                )}
+              >
+                <Icon size={18} strokeWidth={1.8} />
+              </div>
+              <p className="text-sm font-semibold text-foreground">{m.label}</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">{m.caption}</p>
+            </div>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+function MostSkippedSection() {
+  // No category data yet — these slots are illustrative.
+  const rows = [
+    { label: 'Snacks & drinks', pct: 38, count: 12 },
+    { label: 'Apparel', pct: 26, count: 8 },
+    { label: 'Subscriptions', pct: 18, count: 6 },
+    { label: 'Tech accessories', pct: 12, count: 4 },
+  ]
+  return (
+    <section>
+      <h2 className="mb-4 font-display text-2xl font-medium tracking-tight text-foreground inline-flex items-center">
+        Most skipped
+        <MockBadge />
+      </h2>
+      <Card padding="md">
+        <div className="flex items-start gap-3 mb-4">
+          <div className="w-9 h-9 rounded-lg bg-primary-tint text-primary-deep flex items-center justify-center flex-shrink-0">
+            <Tag size={16} strokeWidth={1.8} />
+          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Categories aren&apos;t stored yet. Once items get tagged, this chart shows where
+            your willpower is winning.
+          </p>
+        </div>
+        <div className="space-y-2.5">
+          {rows.map(r => (
+            <div key={r.label} className="space-y-1">
+              <div className="flex items-baseline justify-between">
+                <span className="text-[13px] font-semibold text-foreground">{r.label}</span>
+                <span className="text-[11px] tabular-nums text-muted-foreground">
+                  {r.count} items · {r.pct}%
+                </span>
+              </div>
+              <div className="h-2 rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full bg-primary rounded-full"
+                  style={{ width: `${r.pct}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </section>
+  )
+}
+
+function ThisQuarterSection() {
+  return (
+    <section>
+      <h2 className="mb-4 font-display text-2xl font-medium tracking-tight text-foreground inline-flex items-center">
+        This quarter
+        <MockBadge />
+      </h2>
+      <Card padding="md">
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 rounded-lg bg-gold-tint text-gold-deep flex items-center justify-center flex-shrink-0">
+            <CalendarRange size={16} strokeWidth={1.8} />
+          </div>
+          <div className="flex-1">
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Quarterly breakdown is mocked. Real version compares pace vs the last 90 days.
+            </p>
+            <div className="mt-3 grid grid-cols-3 gap-3">
+              <QuarterCell label="Saved" value="RM 420" tone="primary" />
+              <QuarterCell label="Skipped" value="14" tone="text" />
+              <QuarterCell label="vs last" value="+18%" tone="gold" />
+            </div>
+          </div>
+        </div>
+      </Card>
+    </section>
+  )
+}
+
+function QuarterCell({
+  label,
+  value,
+  tone,
+}: {
+  label: string
+  value: string
+  tone: 'primary' | 'gold' | 'text'
+}) {
+  const colorClass =
+    tone === 'primary'
+      ? 'text-primary'
+      : tone === 'gold'
+        ? 'text-gold-deep'
+        : 'text-foreground'
+  return (
+    <div>
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
+      <p
+        className={cn(
+          'mt-1 font-display text-lg font-medium tabular-nums tracking-tight',
+          colorClass,
+        )}
+      >
+        {value}
+      </p>
+    </div>
+  )
+}
+
+function NotificationsSection() {
+  return (
+    <section>
+      <h2 className="mb-4 font-display text-2xl font-medium tracking-tight text-foreground inline-flex items-center">
+        Notifications
+        <MockBadge />
+      </h2>
+      <Card padding="none">
+        <NotificationToggle
+          label="Cooling ready"
+          caption="Gentle ping when a temptation hits its timer"
+          defaultChecked
+        />
+        <NotificationToggle
+          label="Group activity"
+          caption="When someone adds an expense or invites you"
+          defaultChecked
+        />
+        <NotificationToggle
+          label="Weekly digest"
+          caption="A quiet summary every Sunday morning"
+        />
+        <NotificationToggle
+          label="Milestone unlocked"
+          caption="Celebrate when you cross a savings threshold"
+          last
+        />
+      </Card>
+    </section>
+  )
+}
+
+function NotificationToggle({
+  label,
+  caption,
+  defaultChecked,
+  last,
+}: {
+  label: string
+  caption: string
+  defaultChecked?: boolean
+  last?: boolean
+}) {
+  const [on, setOn] = useState(!!defaultChecked)
+  return (
+    <button
+      type="button"
+      onClick={() => setOn(v => !v)}
+      className={cn(
+        'w-full flex items-center gap-3.5 px-5 py-4 min-h-[60px] text-left hover:bg-foreground/[0.025] transition-colors',
+        !last && 'border-b border-sep',
+      )}
+    >
+      <div className="w-9 h-9 rounded-lg bg-primary-tint text-primary-deep flex items-center justify-center flex-shrink-0">
+        <Bell size={16} strokeWidth={1.8} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[13px] font-semibold text-foreground">{label}</p>
+        <p className="text-xs text-muted-foreground mt-0.5">{caption}</p>
+      </div>
+      <span
+        role="switch"
+        aria-checked={on}
+        className={cn(
+          'relative flex-shrink-0 w-11 h-6 rounded-full transition-colors',
+          on ? 'bg-primary' : 'bg-border',
+        )}
+      >
+        <span
+          className={cn(
+            'absolute top-0.5 w-5 h-5 rounded-full bg-card shadow transition-transform',
+            on ? 'translate-x-[22px]' : 'translate-x-0.5',
+          )}
+        />
+      </span>
+    </button>
+  )
+}
+
+function DataSection() {
+  return (
+    <section>
+      <h2 className="mb-4 font-display text-2xl font-medium tracking-tight text-foreground inline-flex items-center">
+        Data
+        <MockBadge />
+      </h2>
+      <Card padding="none">
+        <button
+          type="button"
+          onClick={() => alert('CSV export wires up after submission — placeholder.')}
+          className="w-full flex items-center gap-3.5 px-5 py-4 min-h-[60px] text-left hover:bg-foreground/[0.025] transition-colors"
+        >
+          <div className="w-9 h-9 rounded-lg bg-primary-tint text-primary-deep flex items-center justify-center flex-shrink-0">
+            <Download size={16} strokeWidth={1.8} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[13px] font-semibold text-foreground">Export as CSV</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Download every cooling item, skip, buy, and group expense
+            </p>
+          </div>
+          <ChevronRight size={14} strokeWidth={1.8} className="text-subtle-foreground flex-shrink-0" />
+        </button>
+      </Card>
+    </section>
+  )
+}
+
+/* ─── Existing stat / record sub-components ─── */
 
 function StatCell({
   label,
@@ -379,12 +721,7 @@ function StatCell({
         : 'text-foreground'
 
   return (
-    <div
-      className={cn(
-        'px-5 lg:px-6 py-5',
-        border && 'border-r border-sep',
-      )}
-    >
+    <div className={cn('px-5 lg:px-6 py-5', border && 'border-r border-sep')}>
       <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-[1.2px]">
         {label}
       </p>
