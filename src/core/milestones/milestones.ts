@@ -67,7 +67,7 @@ export function computeMilestones(inputs: MilestoneInputs): MilestoneResult {
       unlocked: skippedItems.length >= 1,
       icon: 'Leaf',
       color: 'primary',
-      unlockedAt: skippedItems[0]?.resolvedAt ?? null,
+      unlockedAt: skippedItems[0]?.resolvedAt ? new Date(skippedItems[0].resolvedAt) : null,
     },
     {
       id: 'thousand',
