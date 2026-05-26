@@ -1,54 +1,48 @@
+import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
-import { itemsRepo } from '@/data/items.repo'
-import { groupsRepo } from '@/data/groups.repo'
-import { computeSkipRate, summarizeSkipped } from '@/core/savings/savings'
-import { computeBalances } from '@/core/debt/groupBalances'
 import { getUserContext } from '@/lib/user-context'
 import { buildGreeting, buildDateLabel } from '@/lib/greeting'
-import { DashboardShell } from './_components/dashboard-shell'
-import type { GroupMiniRow } from './_components/groups-mini-list'
+import { HeroRow } from './_components/sections/hero-row'
+import { CoolingSection } from './_components/sections/cooling-section'
+import { BottomRow } from './_components/sections/bottom-row'
+import { ReviewPillSection } from './_components/sections/review-pill-section'
+import {
+  HeroRowSkeleton,
+  CoolingSectionSkeleton,
+  BottomRowSkeleton,
+} from './_components/sections/skeletons'
 
 export default async function DashboardPage() {
   const ctx = await getUserContext()
   if (!ctx) redirect('/login')
 
-  const [coolingItems, skippedItems, boughtItems, groups] = await Promise.all([
-    itemsRepo.findCoolingByUser(ctx.id),
-    itemsRepo.findSkippedByUser(ctx.id),
-    itemsRepo.findBoughtByUser(ctx.id),
-    groupsRepo.findManyByUserDeep(ctx.id),
-  ])
-
-  const groupRows: GroupMiniRow[] = groups.slice(0, 3).map(g => {
-    const balances = computeBalances(g.expenses)
-    return {
-      id: g.id,
-      name: g.name,
-      memberCount: g.members.length,
-      youBalanceCents: balances.get(ctx.id) ?? 0,
-    }
-  })
-
-  const summary = summarizeSkipped(skippedItems, 30)
-  const skipRatePct = computeSkipRate(skippedItems.length, boughtItems.length)
-
-  const skippedWithStatus = skippedItems.map(i => ({ ...i, status: 'SKIPPED' as const }))
-  const boughtWithStatus = boughtItems.map(i => ({ ...i, status: 'BOUGHT' as const }))
-
   return (
-    <DashboardShell
-      savedCents={summary.totalCents}
-      thisMonthCents={summary.thisMonthCents}
-      skipRatePct={skipRatePct}
-      coolingItems={coolingItems}
-      skippedItems={skippedWithStatus}
-      boughtItems={boughtWithStatus}
-      timeCostContext={ctx.timeCostContext}
-      savingsChartData={summary.cumulativeByDay}
-      heatmapData={summary.rawByDay}
-      greeting={buildGreeting(ctx.name)}
-      dateLabel={buildDateLabel()}
-      groupRows={groupRows}
-    />
+    <div className="max-w-[520px] lg:max-w-[1080px] mx-auto px-5 lg:px-12 pt-6 lg:pt-8 pb-8 lg:pb-16">
+      <div className="mb-6 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            {buildDateLabel()}
+          </p>
+          <h1 className="mt-0.5 font-display text-3xl lg:text-4xl font-semibold tracking-tight text-foreground">
+            {buildGreeting(ctx.name)}
+          </h1>
+        </div>
+        <Suspense fallback={null}>
+          <ReviewPillSection userId={ctx.id} />
+        </Suspense>
+      </div>
+
+      <Suspense fallback={<HeroRowSkeleton />}>
+        <HeroRow userId={ctx.id} timeCostContext={ctx.timeCostContext} />
+      </Suspense>
+
+      <Suspense fallback={<CoolingSectionSkeleton />}>
+        <CoolingSection userId={ctx.id} timeCostContext={ctx.timeCostContext} />
+      </Suspense>
+
+      <Suspense fallback={<BottomRowSkeleton />}>
+        <BottomRow userId={ctx.id} />
+      </Suspense>
+    </div>
   )
 }

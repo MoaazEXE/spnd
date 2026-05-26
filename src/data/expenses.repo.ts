@@ -46,6 +46,33 @@ export const expensesRepo = {
       },
     })
   },
+
+  /**
+   * Search expense descriptions across groups the user belongs to.
+   * Scopes via Group.members join so users only see their own groups.
+   */
+  async searchByUser(userId: string, query: string, limit = 6) {
+    const q = query.trim()
+    if (!q) return []
+    return prisma.expense.findMany({
+      where: {
+        status: 'COMMITTED',
+        description: { contains: q, mode: 'insensitive' },
+        group: {
+          members: { some: { userId, status: 'ACTIVE' } },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      select: {
+        id: true,
+        description: true,
+        amountCents: true,
+        createdAt: true,
+        group: { select: { id: true, name: true } },
+      },
+    })
+  },
 } as const
 
 export type ExpensesRepo = typeof expensesRepo

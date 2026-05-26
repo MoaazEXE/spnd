@@ -44,3 +44,5 @@ next-env.d.ts
 /src/generated/
 CLAUDE.md
 AGENTS.md
+
+IMPROVEMENTS.md

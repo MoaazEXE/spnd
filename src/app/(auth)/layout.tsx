@@ -1,4 +1,10 @@
-export default function AuthLayout({ children }: { children: React.ReactNode }) {
+import { redirect } from 'next/navigation'
+import { getCurrentUser } from '@/lib/supabase/server'
+
+export default async function AuthLayout({ children }: { children: React.ReactNode }) {
+  const user = await getCurrentUser()
+  if (user) redirect('/dashboard')
+
   return (
     <div className="relative min-h-screen flex items-center justify-center p-7 overflow-hidden bg-background">
       {/* Decorative gradients — pure CSS, GPU-only repaints */}

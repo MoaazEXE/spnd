@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -36,6 +36,45 @@ export function SheetFrame({ title, onClose, children, footer, size = 'auto' }: 
     setTimeout(onClose, CLOSE_DURATION)
   }, [closing, onClose])
 
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') animateClose()
+      if (e.key !== 'Tab') return
+      const sheet = sheetRef.current
+      if (!sheet) return
+      const focusables = sheet.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      )
+      const visible = Array.from(focusables).filter(
+        el => !el.hasAttribute('disabled') && el.offsetParent !== null,
+      )
+      if (visible.length === 0) return
+      const first = visible[0]
+      const last = visible[visible.length - 1]
+      const active = document.activeElement as HTMLElement | null
+      if (e.shiftKey && active === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [animateClose])
+
+  useEffect(() => {
+    const sheet = sheetRef.current
+    if (!sheet) return
+    const first = sheet.querySelector<HTMLElement>(
+      'input:not([disabled]), textarea:not([disabled]), [data-sheet-autofocus]',
+    )
+    if (first) {
+      requestAnimationFrame(() => first.focus())
+    }
+  }, [])
+
   /* ── Drag-to-close (pointer events work for both touch + mouse) ── */
   function onDragStart(e: React.PointerEvent) {
     startY.current = e.clientY
@@ -62,6 +101,9 @@ export function SheetFrame({ title, onClose, children, footer, size = 'auto' }: 
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
       className={cn(
         'fixed inset-0 z-40 flex flex-col justify-end',
         closing && 'animate-scrim-fade-out',

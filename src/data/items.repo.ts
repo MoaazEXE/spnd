@@ -108,14 +108,31 @@ export const itemsRepo = {
   async searchByUser(userId: string, query: string, limit = 10) {
     const q = query.trim()
     if (!q) return []
-    return prisma.item.findMany({
+    const qLower = q.toLowerCase()
+
+    // Fetch a larger pool so we can re-rank in memory by relevance + status.
+    const pool = await prisma.item.findMany({
       where: {
         userId,
         title: { contains: q, mode: 'insensitive' },
       },
       orderBy: [{ resolvedAt: 'desc' }, { createdAt: 'desc' }],
-      take: limit,
+      take: limit * 4,
     })
+
+    // Tier by match shape: exact > startsWith > contains.
+    // Within tier, COOLING (active context) > SKIPPED > BOUGHT.
+    const statusWeight: Record<string, number> = { COOLING: 3, SKIPPED: 2, BOUGHT: 1 }
+    const score = (i: (typeof pool)[number]) => {
+      const t = i.title.toLowerCase()
+      const matchTier = t === qLower ? 100 : t.startsWith(qLower) ? 50 : 10
+      return matchTier + (statusWeight[i.status] ?? 0)
+    }
+    return pool
+      .map(i => ({ i, s: score(i) }))
+      .sort((a, b) => b.s - a.s)
+      .slice(0, limit)
+      .map(x => x.i)
   },
 
   async snooze(id: string, userId: string, minutes = 1440) {

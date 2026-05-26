@@ -150,7 +150,7 @@ export function ConfirmDialog(props: Props) {
             type="button"
             onClick={onCancel}
             disabled={busy}
-            className="flex-1 h-11 rounded-lg text-sm font-semibold text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+            className="flex-1 h-11 rounded-lg text-sm font-semibold text-foreground hover:bg-muted transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-1"
           >
             {cancelLabel}
           </button>
@@ -159,7 +159,7 @@ export function ConfirmDialog(props: Props) {
             type="button"
             onClick={() => canConfirm && onConfirm()}
             disabled={!canConfirm}
-            className={`flex-[1.4] h-11 rounded-lg text-sm font-semibold transition-colors active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed ${confirmCls}`}
+            className={`flex-[1.4] h-11 rounded-lg text-sm font-semibold transition-colors active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-1 ${confirmCls}`}
           >
             {busy ? '…' : confirmLabel}
           </button>

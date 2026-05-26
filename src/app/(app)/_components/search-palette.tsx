@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Command } from 'cmdk'
-import { Search, Clock, Check, ShoppingBag, User, ArrowRight } from 'lucide-react'
+import { Search, Clock, Check, ShoppingBag, User, ArrowRight, Receipt } from 'lucide-react'
 import { fmtRM } from '@/lib/formatters'
 import { Avatar } from '@/components/ui/avatar'
 import { useResolveSheet } from './resolve-sheet-context'
@@ -31,10 +31,19 @@ interface SearchMember {
   groupName: string | null
 }
 
+interface SearchExpense {
+  id: string
+  description: string
+  amountCents: number
+  groupId: string
+  groupName: string
+}
+
 interface SearchResponse {
   items: SearchItem[]
   groups: SearchGroup[]
   members: SearchMember[]
+  expenses: SearchExpense[]
   isDefault: boolean
 }
 
@@ -53,6 +62,7 @@ export function SearchPalette({ isOpen, onClose }: Props) {
   const [items, setItems] = useState<SearchItem[]>([])
   const [groups, setGroups] = useState<SearchGroup[]>([])
   const [members, setMembers] = useState<SearchMember[]>([])
+  const [expenses, setExpenses] = useState<SearchExpense[]>([])
   const [isDefault, setIsDefault] = useState(true)
   const [loading, setLoading] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
@@ -78,6 +88,7 @@ export function SearchPalette({ isOpen, onClose }: Props) {
           setItems(data.items ?? [])
           setGroups(data.groups ?? [])
           setMembers(data.members ?? [])
+          setExpenses(data.expenses ?? [])
           setIsDefault(!!data.isDefault)
           setLoading(false)
         })
@@ -113,9 +124,14 @@ export function SearchPalette({ isOpen, onClose }: Props) {
     if (m.groupId) router.push(`/groups/${m.groupId}`)
   }
 
+  function handleExpenseSelect(e: SearchExpense) {
+    onClose()
+    router.push(`/groups/${e.groupId}`)
+  }
+
   if (!isOpen) return null
 
-  const totalResults = items.length + groups.length + members.length
+  const totalResults = items.length + groups.length + members.length + expenses.length
   const showEmpty = !loading && !isDefault && query.trim() && totalResults === 0
 
   return (
@@ -199,6 +215,34 @@ export function SearchPalette({ isOpen, onClose }: Props) {
                     strokeWidth={1.8}
                     className="text-subtle-foreground flex-shrink-0"
                   />
+                </Command.Item>
+              ))}
+            </Command.Group>
+          )}
+
+          {expenses.length > 0 && (
+            <Command.Group heading="Expenses" className={GROUP_HEADING_STYLES}>
+              {expenses.map(e => (
+                <Command.Item
+                  key={e.id}
+                  value={`expense-${e.id}-${e.description}`}
+                  onSelect={() => handleExpenseSelect(e)}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-md cursor-pointer data-[selected=true]:bg-primary-tint/60"
+                >
+                  <div className="flex-shrink-0 w-9 h-9 rounded-sm bg-primary-tint flex items-center justify-center text-primary-deep">
+                    <Receipt size={16} strokeWidth={1.8} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-foreground truncate">
+                      {e.description}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground truncate">
+                      In {e.groupName}
+                    </p>
+                  </div>
+                  <span className="flex-shrink-0 text-sm font-semibold tabular-nums text-foreground">
+                    {fmtRM(e.amountCents, 0)}
+                  </span>
                 </Command.Item>
               ))}
             </Command.Group>
