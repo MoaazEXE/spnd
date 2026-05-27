@@ -61,6 +61,14 @@ export const itemsRepo = {
     )(),
   ),
 
+  countBoughtByUser: cache(async (userId: string) =>
+    unstable_cache(
+      async () => prisma.item.count({ where: { userId, status: 'BOUGHT' } }),
+      ['items-countBoughtByUser', userId],
+      { tags: [`items-user-${userId}`] },
+    )(),
+  ),
+
   /** Just cooling rows shaped for the bell — small projection. */
   findCoolingForBellByUser: cache(async (userId: string) =>
     unstable_cache(

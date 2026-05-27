@@ -235,6 +235,15 @@ export const groupsRepo = {
       { tags: [`groups-user-${userId}`] },
     )(),
   ),
+
+  async requireActiveMembership(groupId: string, userId: string): Promise<void> {
+    const member = await prisma.groupMember.findUnique({
+      where: { groupId_userId: { groupId, userId } },
+    })
+    if (!member || member.status !== 'ACTIVE') {
+      throw new Error("You're not a member of this group.")
+    }
+  },
 } as const
 
 export type GroupsRepo = typeof groupsRepo

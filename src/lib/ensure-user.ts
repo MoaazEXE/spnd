@@ -1,5 +1,20 @@
 import { prisma } from '@/lib/prisma'
 
+const SAFE_AVATAR_HOSTS = new Set([
+  'lh3.googleusercontent.com',
+  'avatars.githubusercontent.com',
+])
+
+function isSafeAvatarUrl(url: string | undefined): url is string {
+  if (!url) return false
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'https:' && SAFE_AVATAR_HOSTS.has(parsed.hostname)
+  } catch {
+    return false
+  }
+}
+
 interface MinimalAuthUser {
   id: string
   email?: string | null
@@ -20,12 +35,13 @@ export async function ensureUserRecord(user: MinimalAuthUser): Promise<void> {
   const name = metadataName ?? user.email?.split('@')[0] ?? 'User'
 
   // Google OAuth exposes the profile picture as avatar_url (Supabase-mapped) or picture (raw)
-  const googleAvatarUrl =
+  const rawAvatarUrl =
     user.user_metadata
       ? ((typeof user.user_metadata.avatar_url === 'string' && user.user_metadata.avatar_url) ||
          (typeof user.user_metadata.picture === 'string' && user.user_metadata.picture) ||
          undefined)
       : undefined
+  const googleAvatarUrl = isSafeAvatarUrl(rawAvatarUrl) ? rawAvatarUrl : undefined
 
   try {
     await prisma.user.upsert({

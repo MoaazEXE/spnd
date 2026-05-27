@@ -22,10 +22,12 @@ export async function GET() {
     const user = await getCurrentUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+    const LIMIT = 10_000
     const [items, expenses] = await Promise.all([
       prisma.item.findMany({
         where: { userId: user.id },
         orderBy: { createdAt: 'desc' },
+        take: LIMIT,
       }),
       prisma.expense.findMany({
         where: {
@@ -33,6 +35,7 @@ export async function GET() {
         },
         include: { group: { select: { name: true } } },
         orderBy: { createdAt: 'desc' },
+        take: LIMIT,
       }),
     ])
 
@@ -64,6 +67,11 @@ export async function GET() {
         e.status,
         e.createdAt.toISOString(),
       ))
+    }
+
+    if (items.length === LIMIT || expenses.length === LIMIT) {
+      lines.push('')
+      lines.push('# Export truncated to last 10,000 rows per section')
     }
 
     const date = new Date().toISOString().slice(0, 10)

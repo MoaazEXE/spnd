@@ -102,19 +102,9 @@ export async function deleteAccount(): Promise<string | null> {
   }
 
   // Step 2: delete the DB row — the only critical step
-  // Group.creator and Expense.payer have no onDelete cascade in the schema,
-  // so we must remove them manually before deleting the user.
   try {
-    const { prisma } = await import('@/lib/prisma')
-
-    // Deleting groups cascades their members, expenses, and expense shares
-    await prisma.group.deleteMany({ where: { createdBy: userId } })
-    // Remove any expenses paid by this user in groups they didn't create
-    await prisma.expense.deleteMany({ where: { payerId: userId } })
-    // Remove guests this user added in other people's groups — FK to User has no cascade
-    await prisma.guestMember.deleteMany({ where: { addedBy: userId } }).catch(() => {})
-    // Now the user row can be safely deleted (Items, GroupMember, ExpenseShare cascade)
-    await prisma.user.delete({ where: { id: userId } })
+    const { usersRepo } = await import('@/data/users.repo')
+    await usersRepo.cascadeDeleteUserData(userId)
   } catch (err) {
     const { logError } = await import('@/lib/log-error')
     await logError('action:deleteAccount:prisma', { userId }, err)

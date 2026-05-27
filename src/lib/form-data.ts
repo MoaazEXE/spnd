@@ -1,3 +1,5 @@
+import { parseAmountToCents } from '@/lib/money'
+
 /**
  * Tiny typed FormData accessors. Keeps Server Actions honest without
  * pulling in a full schema lib for a 1-day project.
@@ -22,13 +24,15 @@ export function getOptionalNumber(fd: FormData, key: string): number | null {
 }
 
 export function getCents(fd: FormData, key: string): number | null {
-  const n = getOptionalNumber(fd, key)
-  return n == null ? null : Math.round(n * 100)
+  const raw = getString(fd, key)
+  if (raw == null || raw === '') return null
+  return parseAmountToCents(raw)
 }
 
 export function getRequiredCents(fd: FormData, key: string): number {
   const c = getCents(fd, key)
   if (c == null || c <= 0) throw new ValidationError('Enter a valid amount.')
+  if (c > 100_000_000) throw new ValidationError('Amount is too large (max RM 1,000,000).')
   return c
 }
 

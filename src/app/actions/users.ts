@@ -40,7 +40,18 @@ export async function updateProfile(
     let avatarUrl: string | undefined
     if (avatarFile instanceof File && avatarFile.size > 0) {
       if (avatarFile.size > 2 * 1024 * 1024) throw new ValidationError('Avatar must be under 2 MB.')
-      const path = `${user.id}/avatar.jpg`
+
+      // Validate file type by magic bytes (not just extension or Content-Type header)
+      const header = new Uint8Array(await avatarFile.slice(0, 12).arrayBuffer())
+      const isJpeg = header[0] === 0xFF && header[1] === 0xD8 && header[2] === 0xFF
+      const isPng = header[0] === 0x89 && header[1] === 0x50 && header[2] === 0x4E && header[3] === 0x47
+      const isWebp = header[0] === 0x52 && header[1] === 0x49 && header[2] === 0x46 && header[3] === 0x46
+        && header[8] === 0x57 && header[9] === 0x45 && header[10] === 0x42 && header[11] === 0x50
+      if (!isJpeg && !isPng && !isWebp) throw new ValidationError('Avatar must be a JPEG, PNG, or WebP image.')
+      const detectedType = isJpeg ? 'image/jpeg' : isPng ? 'image/png' : 'image/webp'
+      const ext = isJpeg ? 'jpg' : isPng ? 'png' : 'webp'
+
+      const path = `${user.id}/avatar.${ext}`
 
       const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
       if (!serviceKey) throw new ValidationError('Storage is not configured.')
@@ -55,7 +66,7 @@ export async function updateProfile(
 
       const { error } = await adminStorage.storage
         .from('avatars')
-        .upload(path, avatarFile, { upsert: true, contentType: 'image/jpeg' })
+        .upload(path, avatarFile, { upsert: true, contentType: detectedType })
       if (error) throw new ValidationError(`Upload failed: ${error.message}`)
 
       const { data } = adminStorage.storage.from('avatars').getPublicUrl(path)

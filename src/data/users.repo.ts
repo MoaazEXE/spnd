@@ -53,4 +53,16 @@ export const usersRepo = {
   ) {
     return prisma.user.update({ where: { id }, data: prefs })
   },
+
+  /** Cascade-delete all user data before removing the auth row. */
+  async cascadeDeleteUserData(id: string): Promise<void> {
+    // Deleting groups cascades their members, expenses, and expense shares
+    await prisma.group.deleteMany({ where: { createdBy: id } })
+    // Remove any expenses paid by this user in groups they didn't create
+    await prisma.expense.deleteMany({ where: { payerId: id } })
+    // Remove guests this user added in other people's groups — FK to User has no cascade
+    await prisma.guestMember.deleteMany({ where: { addedBy: id } }).catch(() => {})
+    // Now the user row can be safely deleted (Items, GroupMember, ExpenseShare cascade)
+    await prisma.user.delete({ where: { id } })
+  },
 }

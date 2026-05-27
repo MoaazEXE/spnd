@@ -23,12 +23,9 @@ async function getAuthUserId(): Promise<string> {
 }
 
 async function requireActiveMembership(groupId: string, userId: string): Promise<void> {
-  const member = await prisma.groupMember.findUnique({
-    where: { groupId_userId: { groupId, userId } },
-  })
-  if (!member || member.status !== 'ACTIVE') {
+  await groupsRepo.requireActiveMembership(groupId, userId).catch(() => {
     throw new ValidationError("You're not a member of this group.")
-  }
+  })
 }
 
 /**
@@ -449,6 +446,22 @@ export async function editExpense(
         .filter((v): v is string => typeof v === 'string' && v.length > 0)
       const customGuestIds = formData.getAll('resplitGuestParticipants')
         .filter((v): v is string => typeof v === 'string' && v.length > 0)
+
+      // IDOR guard: ensure submitted IDs are actual group members
+      const validMemberIds = new Set(expense.group.members.map(m => m.userId))
+      if (customMemberIds.some(id => !validMemberIds.has(id))) {
+        throw new ValidationError('Invalid participant: not a member of this group.')
+      }
+      if (customGuestIds.length > 0) {
+        const groupGuests = await prisma.guestMember.findMany({
+          where: { groupId: expense.groupId },
+          select: { id: true },
+        })
+        const validGuestIds = new Set(groupGuests.map(g => g.id))
+        if (customGuestIds.some(id => !validGuestIds.has(id))) {
+          throw new ValidationError('Invalid guest: not a member of this group.')
+        }
+      }
 
       let memberIds: string[]
       let guestIds: string[]

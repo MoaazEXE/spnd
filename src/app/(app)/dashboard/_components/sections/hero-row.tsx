@@ -13,13 +13,13 @@ interface Props {
 }
 
 export async function HeroRow({ userId, timeCostContext, timezone = 'UTC' }: Props) {
-  const [skipped, bought] = await Promise.all([
+  const [skipped, boughtCount] = await Promise.all([
     itemsRepo.findSkippedByUser(userId),
-    itemsRepo.findBoughtByUser(userId),
+    itemsRepo.countBoughtByUser(userId),
   ])
 
   const summary = summarizeSkipped(skipped, 30, timezone)
-  const skipRatePct = computeSkipRate(skipped.length, bought.length)
+  const skipRatePct = computeSkipRate(skipped.length, boughtCount)
   const heroTimeCost =
     timeCostContext && summary.totalCents > 0
       ? timeCostForItem(timeCostContext, summary.totalCents)

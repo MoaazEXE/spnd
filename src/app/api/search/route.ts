@@ -12,10 +12,7 @@ export async function GET(req: Request) {
 
   const user = await getCurrentUser()
   if (!user) {
-    return NextResponse.json(
-      { items: [], groups: [], members: [], expenses: [] },
-      { status: 401 },
-    )
+    return new Response('Unauthorized', { status: 401 })
   }
 
   if (!q) {

@@ -5,7 +5,9 @@ import { NextResponse, type NextRequest } from 'next/server'
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  const next = searchParams.get('next') ?? '/dashboard'
+  const rawNext = searchParams.get('next') ?? '/dashboard'
+  // Reject open redirects: only allow same-origin paths (no // or \)
+  const next = /^\/(?![/\\])/.test(rawNext) ? rawNext : '/dashboard'
 
   if (!code) {
     return NextResponse.redirect(`${origin}/login?error=Missing+auth+code`)
