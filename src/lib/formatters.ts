@@ -13,12 +13,19 @@ function currencyMeta(code: string) {
   return CURRENCIES.find(c => c.code === code) ?? CURRENCIES[0]
 }
 
-/** Format cents with a specific currency. decimals=2 for totals, 0 for list rows. */
+/**
+ * Format cents with a specific currency.
+ *   decimals=2  → always 2 decimal places (use for totals/inputs)
+ *   decimals=0  → up to 2 decimals, trailing zeros trimmed
+ *                 (4.50 → "4.5", 4.00 → "4", 4.75 → "4.75")
+ *                 Use for list rows — keeps things compact but never rounds
+ *                 cents away from the user's eyes.
+ */
 export function fmtCurrency(cents: number, currency: string, decimals: 0 | 2 = 2): string {
   const meta = currencyMeta(currency)
   const amount = new Intl.NumberFormat(meta.locale, {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
+    minimumFractionDigits: decimals === 2 ? 2 : 0,
+    maximumFractionDigits: 2,
   }).format(cents / 100)
   return `${meta.symbol} ${amount}`
 }

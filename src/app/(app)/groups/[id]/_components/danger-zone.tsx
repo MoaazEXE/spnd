@@ -17,6 +17,12 @@ interface Props {
   members: GroupMemberView[]
   currentUserId: string
   onTransferRequest: () => void
+  /**
+   * Optional callback fired after a successful delete/leave. Used by the desktop
+   * two-pane layout to clear the selected group id so the right panel doesn't
+   * show stale data (and a second click on "Delete" doesn't hit a vanished id).
+   */
+  onAfterRemoved?: () => void
 }
 
 export function DangerZone({
@@ -27,6 +33,7 @@ export function DangerZone({
   members,
   currentUserId,
   onTransferRequest,
+  onAfterRemoved,
 }: Props) {
   const fmt = useFmt()
   const [pending, startTransition] = useTransition()
@@ -36,38 +43,48 @@ export function DangerZone({
 
   function doLeave() {
     startTransition(async () => {
+      let succeeded = false
       try {
         const fd = new FormData()
         fd.set('groupId', groupId)
         await leaveGroup(fd)
         toast.success(`You left ${groupName}`)
+        succeeded = true
       } catch (err) {
         // Server actions surface errors as redirects/thrown — we can't read
         // a message safely, so fall back to a generic toast.
         const msg = err instanceof Error ? err.message : 'Could not leave group.'
-        if (!msg.includes('NEXT_REDIRECT')) {
+        if (msg.includes('NEXT_REDIRECT')) {
+          succeeded = true
+        } else {
           toast.error(msg)
         }
       } finally {
         setMode(null)
+        if (succeeded) onAfterRemoved?.()
       }
     })
   }
 
   function doDelete() {
     startTransition(async () => {
+      let succeeded = false
       try {
         const fd = new FormData()
         fd.set('groupId', groupId)
         await deleteGroup(fd)
         toast.success(`Deleted ${groupName}`)
+        succeeded = true
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Could not delete group.'
-        if (!msg.includes('NEXT_REDIRECT')) {
+        if (msg.includes('NEXT_REDIRECT')) {
+          succeeded = true
+        } else {
           toast.error(msg)
         }
       } finally {
         setMode(null)
+        if (succeeded) onAfterRemoved?.()
       }
     })
   }

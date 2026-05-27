@@ -7,7 +7,7 @@ import { getCurrentUser } from '@/lib/supabase/server'
 import { ensureUserRecord } from '@/lib/ensure-user'
 import { groupsRepo } from '@/data/groups.repo'
 import { expensesRepo } from '@/data/expenses.repo'
-import { equalSplit, settlementPlan } from '@/core/debt/groupBalances'
+import { equalSplit, settlementPlan, guestIdFromNode } from '@/core/debt/groupBalances'
 import {
   getRequiredString,
   getRequiredCents,
@@ -51,6 +51,10 @@ async function revalidateGroupMembers(groupId: string, extraUserId?: string) {
   updateTag(`group-${groupId}`)
 }
 
+/**
+ * Returns either an error string OR a JSON-encoded payload `{"id":"..."}`
+ * with the new group's id. Client picks the right destination per viewport.
+ */
 export async function createGroup(
   _prevState: string | null,
   formData: FormData,
@@ -67,7 +71,7 @@ export async function createGroup(
 
   if (typeof result === 'string') return result
   if (userId) updateTag(`groups-user-${userId}`)
-  if (newId) redirect(`/groups/${newId}`)
+  if (newId) return JSON.stringify({ id: newId })
   return null
 }
 
@@ -293,14 +297,21 @@ export async function addGuestMember(
 export async function removeGuestMember(formData: FormData): Promise<void> {
   const guestId = getRequiredString(formData, 'guestId')
   const userId = await getAuthUserId()
+  // Look up the group first so we can revalidate even after the delete
+  // and surface the authorization error from the repo as a ValidationError
+  // (clients catch and toast that — silently swallowing was masking real "you
+  // can't remove this guest" responses).
+  const target = await prisma.guestMember.findUnique({
+    where: { id: guestId },
+    select: { groupId: true },
+  })
   try {
     await groupsRepo.removeGuestMember(guestId, userId)
-    // Revalidate via the guest's group
-    const guest = await prisma.guestMember.findUnique({ where: { id: guestId } }).catch(() => null)
-    if (guest) await revalidateGroupMembers(guest.groupId)
   } catch (e) {
-    if (e instanceof ValidationError) throw e
+    if (e instanceof Error) throw new ValidationError(e.message)
+    throw e
   }
+  if (target) await revalidateGroupMembers(target.groupId)
 }
 
 export async function addExpense(
@@ -343,26 +354,26 @@ export async function addExpense(
 
     const requested = parseParticipants(formData)
     const requestedGuests = parseGuestParticipants(formData)
-    // Only default to "everyone" when the user submitted no selections at all.
-    // If they picked only guests, respect that — don't silently add every member.
-    const participants =
-      requested.length === 0 && requestedGuests.length === 0
-        ? Array.from(activeIds)
-        : requested
+    // Default to "everyone" (members + guests) when the user submitted no
+    // selections at all. If they explicitly picked some, respect that — don't
+    // silently fan out to anyone they unchecked.
+    const noSelections = requested.length === 0 && requestedGuests.length === 0
+    const participants = noSelections ? Array.from(activeIds) : requested
+    const effectiveGuests = noSelections ? Array.from(guestIds) : requestedGuests
 
     for (const id of participants) {
       if (!activeIds.has(id)) throw new ValidationError('One of the selected people is not a group member.')
     }
-    for (const id of requestedGuests) {
+    for (const id of effectiveGuests) {
       if (!guestIds.has(id)) throw new ValidationError('One of the selected guests is not in this group.')
     }
-    if (participants.length === 0 && requestedGuests.length === 0) {
+    if (participants.length === 0 && effectiveGuests.length === 0) {
       throw new ValidationError('Pick at least one person to split this with.')
     }
 
     // Equal split across members + guests; remainder goes to the payer if they're
     // a participant, otherwise to the first share so totals reconcile.
-    const totalPeople = participants.length + requestedGuests.length
+    const totalPeople = participants.length + effectiveGuests.length
     const base = Math.floor(amountCents / totalPeople)
     const remainder = amountCents - base * totalPeople
     const payerIsParticipant = participants.includes(payerId)
@@ -373,7 +384,7 @@ export async function addExpense(
           ? base + remainder
           : base,
     }))
-    const guestShares = requestedGuests.map((gid, i) => ({
+    const guestShares = effectiveGuests.map((gid, i) => ({
       guestId: gid,
       shareCents: !payerIsParticipant && participants.length === 0 && i === 0 ? base + remainder : base,
     }))
@@ -692,7 +703,10 @@ export async function resplitAll(formData: FormData): Promise<void> {
   )
 
   await revalidateGroupMembers(groupId)
-  redirect(`/groups/${groupId}`)
+  // Land on /groups with the group preselected — the list shell renders the
+  // two-pane layout on desktop and bounces mobile to /groups/<id>, so neither
+  // viewport gets the wrong layout flash.
+  redirect(`/groups?selected=${groupId}`)
 }
 
 /**
@@ -707,37 +721,104 @@ export async function settleGroup(formData: FormData): Promise<void> {
 
   const confirmed = formData.getAll('confirm').filter((v): v is string => typeof v === 'string')
   if (confirmed.length === 0) {
-    redirect(`/groups/${groupId}`)
+    redirect(`/groups?selected=${groupId}`)
   }
 
   const expenses = await expensesRepo.findByGroup(groupId)
   const plan = settlementPlan(expenses)
 
-  const accepted = plan.filter(p => {
-    const key = `${p.from}:${p.to}:${p.amountCents}`
-    if (!confirmed.includes(key)) return false
-    return p.from === userId || p.to === userId
-  })
-  if (accepted.length === 0) {
-    redirect(`/groups/${groupId}`)
+  // Resolve guest nodes to their sponsor — guests can't pay or be paid in the
+  // DB sense. We surface them as separate rows on the plan, but the actual
+  // cashflow always belongs to a real account holder.
+  const guestSponsorById = new Map<string, string>()
+  for (const e of expenses) {
+    for (const gs of (e.guestShares ?? [])) {
+      const g = gs.guest as { id?: string; addedBy: string }
+      if (g.id) guestSponsorById.set(g.id, g.addedBy)
+    }
+  }
+  const resolveNode = (node: string): string | null => {
+    const guestId = guestIdFromNode(node)
+    if (!guestId) return node
+    return guestSponsorById.get(guestId) ?? null
   }
 
-  await prisma.$transaction(
-    accepted.map(p =>
-      prisma.expense.create({
+  // Filter to confirmed plan rows where the acting user has standing.
+  // A user has standing if they're on either side of the resolved row.
+  const accepted = plan
+    .filter(p => {
+      const key = `${p.from}:${p.to}:${p.amountCents}`
+      if (!confirmed.includes(key)) return false
+      const fromUser = resolveNode(p.from)
+      const toUser = resolveNode(p.to)
+      return fromUser === userId || toUser === userId
+    })
+
+  if (accepted.length === 0) {
+    redirect(`/groups?selected=${groupId}`)
+  }
+
+  // Settle each row inside a single transaction. For guest rows we also
+  // reassign the guest's expense shares to their sponsor up to the row amount,
+  // so the next render of the plan correctly removes that guest's debt
+  // (otherwise the row would keep showing even after the user confirmed).
+  await prisma.$transaction(async tx => {
+    for (const p of accepted) {
+      const guestId = guestIdFromNode(p.from)
+      const fromUser = resolveNode(p.from)
+      const toUser = resolveNode(p.to)
+      if (!fromUser || !toUser) continue
+
+      if (guestId) {
+        // Reassign this guest's GuestExpenseShare records (across the group) to
+        // the sponsor's ExpenseShare until we've absorbed `p.amountCents`.
+        const sponsorId = fromUser
+        let remaining = p.amountCents
+        const guestShares = await tx.guestExpenseShare.findMany({
+          where: { guestId, expense: { groupId } },
+          orderBy: { shareCents: 'desc' },
+        })
+        for (const gs of guestShares) {
+          if (remaining <= 0) break
+          const take = Math.min(gs.shareCents, remaining)
+          if (take === gs.shareCents) {
+            await tx.guestExpenseShare.delete({ where: { id: gs.id } })
+          } else {
+            await tx.guestExpenseShare.update({
+              where: { id: gs.id },
+              data: { shareCents: gs.shareCents - take },
+            })
+          }
+          // Upsert the sponsor's ExpenseShare on the same expense, adding the
+          // absorbed amount. Composite unique key (expenseId, userId) lets us
+          // bump an existing share rather than creating duplicates.
+          await tx.expenseShare.upsert({
+            where: { expenseId_userId: { expenseId: gs.expenseId, userId: sponsorId } },
+            create: { expenseId: gs.expenseId, userId: sponsorId, shareCents: take },
+            update: { shareCents: { increment: take } },
+          })
+          remaining -= take
+        }
+      }
+
+      // Skip the cash Settlement when sponsor pays themselves (e.g. the user
+      // covered their own guest's share of an expense they themselves paid).
+      if (fromUser === toUser) continue
+
+      await tx.expense.create({
         data: {
           groupId,
-          payerId: p.from,
+          payerId: fromUser,
           amountCents: p.amountCents,
           description: 'Settlement',
           type: 'INSTANT',
           status: 'COMMITTED',
-          shares: { create: { userId: p.to, shareCents: p.amountCents } },
+          shares: { create: { userId: toUser, shareCents: p.amountCents } },
         },
-      }),
-    ),
-  )
+      })
+    }
+  })
 
   await revalidateGroupMembers(groupId)
-  redirect(`/groups/${groupId}`)
+  redirect(`/groups?selected=${groupId}`)
 }

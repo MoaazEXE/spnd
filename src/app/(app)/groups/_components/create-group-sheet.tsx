@@ -1,21 +1,55 @@
 'use client'
 
-import { useActionState, useEffect, useRef } from 'react'
+import { useActionState, useEffect, useRef, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { createGroup } from '@/app/actions/groups'
 import { ErrorBanner } from '@/components/ui/error-banner'
 import { SheetFrame } from '@/components/ui/sheet-frame'
 
 interface Props {
   onClose: () => void
+  onCreated?: (newGroupId: string) => void
 }
 
-export function CreateGroupSheet({ onClose }: Props) {
-  const [error, action, isPending] = useActionState(createGroup, null)
+export function CreateGroupSheet({ onClose, onCreated }: Props) {
+  const [state, action, isPending] = useActionState(createGroup, null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const router = useRouter()
+
+  // The action returns either an error message or a JSON payload `{"id":"..."}`.
+  // Detect which by trying to parse — keeps the action signature simple.
+  const { error, createdId } = useMemo(() => {
+    if (!state) return { error: null as string | null, createdId: null as string | null }
+    if (state.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(state) as { id?: string }
+        return { error: null, createdId: parsed.id ?? null }
+      } catch {
+        return { error: state, createdId: null }
+      }
+    }
+    return { error: state, createdId: null }
+  }, [state])
 
   useEffect(() => {
     inputRef.current?.focus()
   }, [])
+
+  // After successful creation, route to the right place for the current viewport.
+  // Desktop (>=1024px) stays on /groups and auto-selects the new group via the
+  // onCreated callback. Mobile navigates into the group detail page.
+  useEffect(() => {
+    if (!createdId) return
+    const isDesktop = typeof window !== 'undefined'
+      && window.matchMedia('(min-width: 1024px)').matches
+    if (isDesktop && onCreated) {
+      onCreated(createdId)
+      router.refresh()
+      onClose()
+    } else {
+      router.push(`/groups/${createdId}`)
+    }
+  }, [createdId, onCreated, onClose, router])
 
   return (
     <SheetFrame

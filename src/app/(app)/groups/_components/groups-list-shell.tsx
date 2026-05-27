@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useTransition, useMemo } from 'react'
+import { useState, useTransition, useMemo, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Plus, Users } from 'lucide-react'
 import { useFmt } from '@/lib/currency-context'
@@ -9,7 +10,7 @@ import { Card } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
 import { cn } from '@/lib/utils'
 import { acceptInvite, rejectInvite } from '@/app/actions/groups'
-import { computeBalances, settlementPlan } from '@/core/debt/groupBalances'
+import { computeBalances, settlementPlan, guestIdFromNode } from '@/core/debt/groupBalances'
 import { CreateGroupSheet } from './create-group-sheet'
 import { GroupDetailPanel, GroupDetailPanelEmpty } from './group-detail-panel'
 import type { GroupSummary, InvitePreview, RawGroupForShell } from '../page'
@@ -45,10 +46,42 @@ export function GroupsListShell({
   allGroupsRaw,
 }: Props) {
   const fmt = useFmt()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  // Preselect when arriving here from a sub-page (settle/resplit/back from
+  // a freshly created group on desktop). Mobile users land on /groups/[id]
+  // directly so this is a desktop convenience — but it's viewport-agnostic
+  // and harmless on mobile (the right panel doesn't render below `lg`).
+  const initialSelectedId = searchParams.get('selected')
   const [creating, setCreating] = useState(false)
   const [pending, startTransition] = useTransition()
   const [actingOn, setActingOn] = useState<string | null>(null)
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(initialSelectedId)
+
+  // Keep `selectedGroupId` in sync if the user pastes a new ?selected= URL
+  // while already on /groups (rare, but cheap to handle).
+  useEffect(() => {
+    if (initialSelectedId && initialSelectedId !== selectedGroupId) {
+      setSelectedGroupId(initialSelectedId)
+    }
+  }, [initialSelectedId, selectedGroupId])
+
+  // Mobile doesn't render the right panel, so a `?selected=<id>` arrival there
+  // (e.g. from a desktop-style redirect after settle/resplit) should bounce
+  // into the dedicated detail page so the user sees the group they meant.
+  useEffect(() => {
+    if (!initialSelectedId) return
+    if (typeof window === 'undefined') return
+    const isMobile = !window.matchMedia('(min-width: 1024px)').matches
+    if (isMobile) router.replace(`/groups/${initialSelectedId}`)
+  }, [initialSelectedId, router])
+
+  // After a delete/leave from the right panel, clear selection and refetch so
+  // the panel doesn't keep showing a now-vanished group.
+  function handleRemoved() {
+    setSelectedGroupId(null)
+    router.refresh()
+  }
 
   // Derive the right-panel detail entirely from already-loaded data.
   // No network round-trip — selecting a group is instant.
@@ -64,7 +97,32 @@ export function GroupsListShell({
 
     const nameById = new Map(g.members.map(m => [m.userId, m.user.name]))
     const avatarById = new Map(g.members.map(m => [m.userId, m.user.avatarUrl]))
-    const labelFor = (uid: string) => (uid === currentUserId ? 'You' : nameById.get(uid) ?? 'Member')
+    const guestById = new Map(g.guestMembers.map(gm => [gm.id, { name: gm.name, sponsor: gm.addedBy }]))
+
+    const labelForNode = (node: string): string => {
+      const guestId = guestIdFromNode(node)
+      if (guestId) {
+        const gg = guestById.get(guestId)
+        return gg ? gg.name : 'Guest'
+      }
+      return nameById.get(node) ?? 'Member'
+    }
+    const avatarForNode = (node: string): string | null => {
+      if (guestIdFromNode(node)) return null
+      return avatarById.get(node) ?? null
+    }
+    const kindOfNode = (node: string): 'me' | 'my-guest' | 'others-guest' | 'user' => {
+      const guestId = guestIdFromNode(node)
+      if (guestId) {
+        return guestById.get(guestId)?.sponsor === currentUserId ? 'my-guest' : 'others-guest'
+      }
+      return node === currentUserId ? 'me' : 'user'
+    }
+    const involvesMe = (node: string): boolean => {
+      const k = kindOfNode(node)
+      return k === 'me' || k === 'my-guest'
+    }
+    const labelFor = (uid: string) => labelForNode(uid)
 
     const members: GroupMemberView[] = g.members.map(m => ({
       id: m.user.id,
@@ -90,21 +148,24 @@ export function GroupsListShell({
         perPersonCents: e.shares.find(s => s.userId === currentUserId)?.shareCents ?? 0,
         payerId: e.payerId,
         payerName: payerLabel,
-        shareCount: e.shares.length,
+        shareCount: e.shares.length + (e.guestShares?.length ?? 0),
         createdAt: e.createdAt, // already an ISO string
       }
     })
 
     const plan: PlanRow[] = settlementPlan(expenses).map(p => ({
       fromId: p.from,
-      fromLabel: labelFor(p.from),
-      fromAvatarUrl: avatarById.get(p.from) ?? null,
+      fromLabel: labelForNode(p.from),
+      fromAvatarUrl: avatarForNode(p.from),
       toId: p.to,
-      toLabel: labelFor(p.to),
-      toAvatarUrl: avatarById.get(p.to) ?? null,
+      toLabel: labelForNode(p.to),
+      toAvatarUrl: avatarForNode(p.to),
       amountCents: p.amountCents,
-      involvesYou: p.from === currentUserId || p.to === currentUserId,
-      youArePayer: p.from === currentUserId,
+      involvesYou: involvesMe(p.from) || involvesMe(p.to),
+      youArePayer: involvesMe(p.from),
+      fromKind: kindOfNode(p.from),
+      toKind: kindOfNode(p.to),
+      guestBreakdown: [],
     }))
 
     const guests: GroupGuestView[] = g.guestMembers.map(gm => ({
@@ -237,6 +298,7 @@ export function GroupsListShell({
           <div className="flex-1 min-w-0 rounded-2xl bg-card shadow-card overflow-hidden">
             {selectedDetail ? (
               <GroupDetailPanel
+                key={selectedDetail.groupId}
                 groupId={selectedDetail.groupId}
                 groupName={selectedDetail.groupName}
                 members={selectedDetail.members}
@@ -248,6 +310,7 @@ export function GroupsListShell({
                 youBalanceCents={selectedDetail.youBalanceCents}
                 settlePlan={selectedDetail.settlePlan}
                 openProposalsCount={selectedDetail.openProposalsCount}
+                onAfterRemoved={handleRemoved}
               />
             ) : (
               <GroupDetailPanelEmpty />
@@ -359,7 +422,12 @@ export function GroupsListShell({
         </button>
       </div>
 
-      {creating && <CreateGroupSheet onClose={() => setCreating(false)} />}
+      {creating && (
+        <CreateGroupSheet
+          onClose={() => setCreating(false)}
+          onCreated={id => setSelectedGroupId(id)}
+        />
+      )}
     </>
   )
 }
@@ -373,6 +441,13 @@ function DesktopGroupRow({
   selected: boolean
   onSelect: () => void
 }) {
+  // Merge members + guests so the visible avatar strip and count reflect both.
+  const people: { id: string; name: string; avatarUrl: string | null }[] = [
+    ...group.members,
+    ...group.guests.map(g => ({ id: `guest:${g.id}`, name: g.name, avatarUrl: null })),
+  ]
+  const totalPeople = group.memberCount + group.guestCount
+
   return (
     <button
       type="button"
@@ -387,10 +462,22 @@ function DesktopGroupRow({
       <Avatar name={group.name} size={44} shape="square" className="flex-shrink-0" />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-foreground truncate">{group.name}</p>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          {group.memberCount + group.guestCount}{' '}
-          {group.memberCount + group.guestCount === 1 ? 'member' : 'members'}
-        </p>
+        <div className="mt-1 flex items-center gap-1.5">
+          <div className="flex">
+            {people.slice(0, 4).map((p, i) => (
+              <div
+                key={p.id}
+                className="rounded-full shadow-avatar-ring"
+                style={{ marginLeft: i > 0 ? -6 : 0 }}
+              >
+                <Avatar name={p.name} src={p.avatarUrl} size={18} />
+              </div>
+            ))}
+          </div>
+          <span className="text-[11px] text-muted-foreground">
+            {totalPeople} {totalPeople === 1 ? 'member' : 'members'}
+          </span>
+        </div>
       </div>
       <DesktopBalanceBadge cents={group.youOweCents} />
     </button>
@@ -416,6 +503,12 @@ function DesktopBalanceBadge({ cents }: { cents: number }) {
 }
 
 function MobileGroupRow({ group }: { group: GroupSummary }) {
+  const people: { id: string; name: string; avatarUrl: string | null }[] = [
+    ...group.members,
+    ...group.guests.map(g => ({ id: `guest:${g.id}`, name: g.name, avatarUrl: null })),
+  ]
+  const totalPeople = group.memberCount + group.guestCount
+
   return (
     <Link
       href={`/groups/${group.id}`}
@@ -428,19 +521,18 @@ function MobileGroupRow({ group }: { group: GroupSummary }) {
           <p className="text-body-lg font-semibold text-foreground truncate">{group.name}</p>
           <div className="mt-1 flex items-center gap-2">
             <div className="flex">
-              {group.members.slice(0, 4).map((m, i) => (
+              {people.slice(0, 4).map((p, i) => (
                 <div
-                  key={m.id}
+                  key={p.id}
                   className="rounded-full shadow-avatar-ring"
                   style={{ marginLeft: i > 0 ? -6 : 0 }}
                 >
-                  <Avatar name={m.name} src={m.avatarUrl} size={20} />
+                  <Avatar name={p.name} src={p.avatarUrl} size={20} />
                 </div>
               ))}
             </div>
             <span className="text-xs text-muted-foreground">
-              {group.memberCount + group.guestCount}{' '}
-              {group.memberCount + group.guestCount === 1 ? 'member' : 'members'}
+              {totalPeople} {totalPeople === 1 ? 'member' : 'members'}
             </span>
           </div>
         </div>

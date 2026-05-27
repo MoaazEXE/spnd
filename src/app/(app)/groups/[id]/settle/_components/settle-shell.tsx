@@ -2,13 +2,25 @@
 
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, ArrowRight, Sparkles, Check, ShoppingBag } from 'lucide-react'
+import { ArrowRight, Sparkles, Check, ShoppingBag } from 'lucide-react'
 import { toast } from 'sonner'
 import { Avatar } from '@/components/ui/avatar'
 import { Card } from '@/components/ui/card'
 import { useFmt } from '@/lib/currency-context'
 import { cn } from '@/lib/utils'
 import { settleGroup } from '@/app/actions/groups'
+import { GroupBackLink } from '@/app/(app)/groups/_components/group-back-link'
+
+/**
+ * What kind of party appears on each side of a plan row, from the acting
+ * user's point of view. Drives the copy in PaymentRow so we never end up
+ * with confusing "You pay → You" labels when a guest is involved.
+ */
+export type PartyKind =
+  | 'me'           // The acting user themselves.
+  | 'my-guest'     // A guest the acting user sponsors.
+  | 'others-guest' // A guest someone else sponsors.
+  | 'user'         // Any other real user.
 
 export interface PlanRow {
   fromId: string
@@ -21,6 +33,13 @@ export interface PlanRow {
   // Who's allowed to confirm this row.
   involvesYou: boolean
   youArePayer: boolean
+  // Categorise both sides so PaymentRow can pick the right copy for the
+  // four guest-involved permutations, not just user-vs-user.
+  fromKind: PartyKind
+  toKind: PartyKind
+  // Guests of `from` whose shares contributed to this debt. Rendered as a
+  // sub-line under the row so users see exactly who they're covering for.
+  guestBreakdown?: { guestName: string; shareCents: number }[]
 }
 
 export interface EvidenceRow {
@@ -29,6 +48,7 @@ export interface EvidenceRow {
   payerName: string
   shareCount: number
   amountCents: number
+  guestNames?: string[]
 }
 
 interface Props {
@@ -78,18 +98,15 @@ export function SettleShell({ groupId, groupName, plan, evidence }: Props) {
   }
 
   return (
-    <div className="max-w-[640px] mx-auto px-5 lg:px-12 pt-4 lg:pt-8 pb-32 lg:pb-16">
+    <div className="mx-auto px-5 lg:px-8 pt-4 lg:pt-8 pb-32 lg:pb-16 max-w-[640px] lg:max-w-5xl">
       <div className="mb-3">
-        <Link
-          href={`/groups/${groupId}`}
-          prefetch
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft size={16} strokeWidth={2} />
-          {groupName}
-        </Link>
+        <GroupBackLink groupId={groupId} groupName={groupName} />
       </div>
 
+      {/* Desktop wraps the whole settle UI in a card so it lives in the same
+          design surface as the right-panel detail. Mobile keeps the flat
+          page-level rendering for the small viewport. */}
+      <div className="lg:bg-card lg:rounded-2xl lg:shadow-card lg:p-8">
       <h1 className="font-display text-3xl lg:text-4xl font-semibold tracking-tight text-foreground">
         Settle up
       </h1>
@@ -124,13 +141,25 @@ export function SettleShell({ groupId, groupName, plan, evidence }: Props) {
               </p>
               <Card padding="none">
                 {youInvolved.map((row, i) => (
-                  <PaymentRow
+                  <div
                     key={rowKey(row)}
-                    row={row}
-                    checked={confirmed.has(rowKey(row))}
-                    onToggle={() => toggle(rowKey(row))}
-                    last={i === youInvolved.length - 1}
-                  />
+                    className={cn(i < youInvolved.length - 1 && 'border-b border-sep')}
+                  >
+                    <PaymentRow
+                      row={row}
+                      checked={confirmed.has(rowKey(row))}
+                      onToggle={() => toggle(rowKey(row))}
+                      last
+                    />
+                    {row.guestBreakdown && row.guestBreakdown.length > 0 && (
+                      <p className="px-4 pb-3 -mt-2 text-[10px] text-subtle-foreground">
+                        Includes{' '}
+                        {row.guestBreakdown
+                          .map(g => `${g.guestName}'s ${fmt(g.shareCents, 0)}`)
+                          .join(', ')}
+                      </p>
+                    )}
+                  </div>
                 ))}
               </Card>
             </>
@@ -146,19 +175,29 @@ export function SettleShell({ groupId, groupName, plan, evidence }: Props) {
                   <div
                     key={rowKey(row)}
                     className={cn(
-                      'flex items-center gap-3 px-4 py-3.5 opacity-70',
+                      'flex flex-col gap-1 px-4 py-3.5 opacity-70',
                       i < othersOnly.length - 1 && 'border-b border-sep',
                     )}
                   >
-                    <Avatar name={row.fromLabel} src={row.fromAvatarUrl} size={32} />
-                    <p className="flex-1 min-w-0 text-xs text-muted-foreground truncate">
-                      <span className="font-semibold text-foreground">{row.fromLabel}</span>{' '}
-                      pays{' '}
-                      <span className="font-semibold text-foreground">{row.toLabel}</span>
-                    </p>
-                    <p className="text-sm font-bold text-foreground tabular-nums">
-                      {fmt(row.amountCents)}
-                    </p>
+                    <div className="flex items-center gap-3">
+                      <Avatar name={row.fromLabel} src={row.fromAvatarUrl} size={32} />
+                      <p className="flex-1 min-w-0 text-xs text-muted-foreground truncate">
+                        <span className="font-semibold text-foreground">{row.fromLabel}</span>{' '}
+                        pays{' '}
+                        <span className="font-semibold text-foreground">{row.toLabel}</span>
+                      </p>
+                      <p className="text-sm font-bold text-foreground tabular-nums">
+                        {fmt(row.amountCents)}
+                      </p>
+                    </div>
+                    {row.guestBreakdown && row.guestBreakdown.length > 0 && (
+                      <p className="text-[10px] text-subtle-foreground pl-11">
+                        Includes{' '}
+                        {row.guestBreakdown
+                          .map(g => `${g.guestName}'s ${fmt(g.shareCents, 0)}`)
+                          .join(', ')}
+                      </p>
+                    )}
                   </div>
                 ))}
               </Card>
@@ -192,6 +231,11 @@ export function SettleShell({ groupId, groupName, plan, evidence }: Props) {
                         {e.payerName} paid · split {e.shareCount}{' '}
                         {e.shareCount === 1 ? 'way' : 'ways'}
                       </p>
+                      {e.guestNames && e.guestNames.length > 0 && (
+                        <p className="text-[10px] text-subtle-foreground mt-0.5 truncate">
+                          With {e.guestNames.join(', ')}
+                        </p>
+                      )}
                     </div>
                     <p className="text-sm font-semibold text-foreground tabular-nums">
                       {fmt(e.amountCents, 0)}
@@ -203,10 +247,10 @@ export function SettleShell({ groupId, groupName, plan, evidence }: Props) {
           )}
 
           <div className="fixed lg:static bottom-[60px] lg:bottom-auto inset-x-0 lg:inset-auto px-5 lg:px-0 py-3 lg:py-0 lg:mt-6 bg-background lg:bg-transparent border-t lg:border-t-0 border-sep z-10">
-            <div className="max-w-[640px] mx-auto flex gap-2.5">
+            <div className="max-w-[640px] lg:max-w-none mx-auto flex gap-2.5 lg:justify-end">
               <Link
-                href={`/groups/${groupId}`}
-                className="flex-1 h-12 rounded-lg inline-flex items-center justify-center text-sm font-semibold text-foreground hover:bg-muted transition-colors"
+                href={`/groups?selected=${groupId}`}
+                className="flex-1 lg:flex-none lg:px-6 h-12 rounded-lg inline-flex items-center justify-center text-sm font-semibold text-foreground hover:bg-muted transition-colors"
               >
                 Cancel
               </Link>
@@ -214,7 +258,7 @@ export function SettleShell({ groupId, groupName, plan, evidence }: Props) {
                 type="button"
                 onClick={submit}
                 disabled={submitting || confirmed.size === 0}
-                className="flex-[1.4] h-12 rounded-lg bg-primary text-primary-foreground text-sm font-semibold inline-flex items-center justify-center gap-2 hover:bg-primary-deep transition-colors active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex-[1.4] lg:flex-none lg:px-8 h-12 rounded-lg bg-primary text-primary-foreground text-sm font-semibold inline-flex items-center justify-center gap-2 hover:bg-primary-deep transition-colors active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Check size={16} strokeWidth={2} />
                 {submitting
@@ -225,6 +269,7 @@ export function SettleShell({ groupId, groupName, plan, evidence }: Props) {
           </div>
         </>
       )}
+      </div>
     </div>
   )
 }
@@ -245,9 +290,37 @@ function PaymentRow({
   last: boolean
 }) {
   const fmt = useFmt()
-  const helper = row.youArePayer
-    ? 'You pay them'
-    : `Confirm ${row.fromLabel} has paid you`
+
+  // Compose a small caption that explains the row from the acting user's
+  // POV. Always uses real names — no "You" / "them" — so guest cases like
+  // "Sarah (your guest) → Moaaz" read straightforwardly.
+  function fromTag(kind: PlanRow['fromKind']): string | null {
+    switch (kind) {
+      case 'me': return 'You'
+      case 'my-guest': return 'Your guest'
+      case 'others-guest': return 'Guest'
+      case 'user': return null
+    }
+  }
+  function toTag(kind: PlanRow['toKind']): string | null {
+    return kind === 'me' ? 'You' : null
+  }
+  function helperFor(r: PlanRow): string {
+    if (r.fromKind === 'my-guest' && r.toKind === 'me') {
+      return 'Already covered by you — tap to clear'
+    }
+    if (r.fromKind === 'my-guest') {
+      return `You'll pay ${r.toLabel} for ${r.fromLabel}`
+    }
+    if (r.fromKind === 'me') {
+      return `Tap when you've paid ${r.toLabel}`
+    }
+    // Someone else (or their guest) pays the acting user.
+    return `Tap when ${r.fromLabel} has paid you`
+  }
+
+  const fromTagText = fromTag(row.fromKind)
+  const toTagText = toTag(row.toKind)
 
   return (
     <button
@@ -259,21 +332,39 @@ function PaymentRow({
         !last && 'border-b border-sep',
       )}
     >
-      <Avatar name={row.fromLabel} src={row.fromAvatarUrl} size={36} />
-      <div className="flex-1 min-w-0">
-        <p className="text-[11px] font-medium text-muted-foreground">
-          {row.youArePayer ? 'You pay' : `${row.fromLabel} pays`}
-        </p>
-        <p className="text-sm font-semibold text-foreground truncate">
-          {row.youArePayer ? row.toLabel : 'You'}
-        </p>
-        <p className="text-[10px] text-subtle-foreground mt-0.5">{helper}</p>
+      <div className="flex items-center gap-2 flex-shrink-0 min-w-0">
+        <Avatar name={row.fromLabel} src={row.fromAvatarUrl} size={36} />
+        <div className="flex flex-col min-w-0">
+          <p className="text-sm font-semibold text-foreground truncate">
+            {row.fromLabel}
+          </p>
+          {fromTagText && (
+            <p className="text-[10px] font-medium text-muted-foreground truncate">
+              {fromTagText}
+            </p>
+          )}
+        </div>
       </div>
       <div className="w-7 h-7 rounded-full bg-primary-tint text-primary flex items-center justify-center flex-shrink-0">
         <ArrowRight size={14} strokeWidth={2} />
       </div>
-      <Avatar name={row.youArePayer ? row.toLabel : 'You'} src={row.toAvatarUrl} size={36} />
-      <p className="text-base font-bold text-foreground tabular-nums flex-shrink-0 min-w-[72px] text-right">
+      <div className="flex items-center gap-2 flex-shrink-0 min-w-0">
+        <Avatar name={row.toLabel} src={row.toAvatarUrl} size={36} />
+        <div className="flex flex-col min-w-0">
+          <p className="text-sm font-semibold text-foreground truncate">
+            {row.toLabel}
+          </p>
+          {toTagText && (
+            <p className="text-[10px] font-medium text-muted-foreground truncate">
+              {toTagText}
+            </p>
+          )}
+        </div>
+      </div>
+      <div className="flex-1 min-w-0 hidden sm:flex flex-col items-start">
+        <p className="text-[10px] text-subtle-foreground truncate">{helperFor(row)}</p>
+      </div>
+      <p className="text-base font-bold text-foreground tabular-nums flex-shrink-0 min-w-[80px] text-right">
         {fmt(row.amountCents)}
       </p>
       <span

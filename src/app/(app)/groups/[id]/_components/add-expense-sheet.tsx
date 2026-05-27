@@ -37,7 +37,12 @@ export function AddExpenseSheet({ groupId, members, guests, onClose }: Props) {
   const [participants, setParticipants] = useState<Set<string>>(
     () => new Set(members.map(m => m.id)),
   )
-  const [guestParticipants, setGuestParticipants] = useState<Set<string>>(new Set())
+  // Default to all guests selected too, matching the "everyone" mental model.
+  // Without this, a new expense silently excludes guests and the activity
+  // shows "split 1 way" even when a guest is in the group.
+  const [guestParticipants, setGuestParticipants] = useState<Set<string>>(
+    () => new Set(guests.map(g => g.id)),
+  )
   const [payerId, setPayerId] = useState<string>(() => members.find(m => m.isYou)?.id ?? members[0]?.id ?? '')
   const [payerIsGuest, setPayerIsGuest] = useState(false)
   const wasPending = useRef(false)

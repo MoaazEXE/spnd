@@ -125,10 +125,15 @@ export function AddMemberSheet({ groupId, initialMode = 'invite', onClose }: Pro
         ) : (
           <form action={guestAction} id="add-guest-form" className="space-y-4">
             <input type="hidden" name="groupId" value={groupId} />
-            <div className="rounded-lg bg-primary-tint px-4 py-3.5">
-              <p className="text-xs text-primary-deep leading-relaxed">
-                Guests don&apos;t need a Settle account. Their debts are tracked under your name —
-                you&apos;re responsible for collecting from them outside the app.
+            <div className="rounded-lg bg-coral-tint px-4 py-3.5">
+              <p className="text-xs text-coral-deep leading-relaxed font-semibold">
+                Heads up — guest mode isn&apos;t perfect.
+              </p>
+              <p className="mt-1 text-xs text-coral-deep/90 leading-relaxed">
+                Settle works best when everyone has their own account. Guests can&apos;t see balances,
+                accept invites, or confirm payments themselves — their share is tracked under your
+                name and you&apos;re responsible for collecting from them outside the app. Invite
+                them by email if you can.
               </p>
             </div>
             <div className="space-y-2">

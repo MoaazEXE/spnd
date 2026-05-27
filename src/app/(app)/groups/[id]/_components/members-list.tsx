@@ -114,7 +114,7 @@ export function MembersList({ members, guests, isCreator, currentUserId, groupId
               <p className="text-sm font-semibold text-foreground truncate">{g.name}</p>
               <p className="text-[11px] text-muted-foreground mt-0.5">Guest</p>
             </div>
-            {isCreator && (
+            {(isCreator || g.addedBy === currentUserId) && (
               <button
                 type="button"
                 onClick={() => setRemoving({ type: 'guest', id: g.id, name: g.name })}

@@ -94,13 +94,16 @@ export function GroupDetailShell({
         </p>
 
         <div className="mt-4 flex items-center justify-center gap-1">
-          {members.map((m, i) => (
+          {[
+            ...members.map(m => ({ id: m.id, name: m.name, avatarUrl: m.avatarUrl })),
+            ...guests.map(g => ({ id: `guest:${g.id}`, name: g.name, avatarUrl: null as string | null })),
+          ].map((p, i) => (
             <div
-              key={m.id}
+              key={p.id}
               className="rounded-full shadow-avatar-ring-lg"
               style={{ marginLeft: i > 0 ? -8 : 0 }}
             >
-              <Avatar name={m.name} src={m.avatarUrl} size={28} />
+              <Avatar name={p.name} src={p.avatarUrl} size={28} />
             </div>
           ))}
         </div>
@@ -155,7 +158,7 @@ export function GroupDetailShell({
         <ActivityList
           activity={activity}
           onEdit={setEditing}
-          memberCount={members.length}
+          memberCount={members.length + guests.length}
           groupId={groupId}
           showResplitAll={hasSplitActivity}
         />

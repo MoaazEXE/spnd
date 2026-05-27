@@ -10,6 +10,7 @@ export interface GroupSummary {
   memberCount: number
   guestCount: number
   members: { id: string; name: string; avatarUrl: string | null }[]
+  guests: { id: string; name: string }[]
   youOweCents: number
   savedTogetherCents: number
 }
@@ -42,6 +43,7 @@ export interface RawGroupForShell {
     description: string
     createdAt: string
     shares: { userId: string; shareCents: number }[]
+    guestShares: { shareCents: number; guest: { addedBy: string; name: string } }[]
     payer: { id: string; name: string; avatarUrl: string | null }
   }[]
   items: { amountCents: number }[]
@@ -73,6 +75,7 @@ export default async function GroupsPage() {
       memberCount: g.members.length,
       guestCount: g.guestMembers.length,
       members: g.members.map(m => ({ id: m.user.id, name: m.user.name, avatarUrl: m.user.avatarUrl })),
+      guests: g.guestMembers.map(gm => ({ id: gm.id, name: gm.name })),
       youOweCents: balances.get(ctx.id) ?? 0,
       savedTogetherCents,
     }
@@ -103,6 +106,10 @@ export default async function GroupsPage() {
       description: e.description,
       createdAt: new Date(e.createdAt).toISOString(),
       shares: e.shares.map(s => ({ userId: s.userId, shareCents: s.shareCents })),
+      guestShares: (e.guestShares ?? []).map(gs => ({
+        shareCents: gs.shareCents,
+        guest: { addedBy: gs.guest.addedBy, name: gs.guest.name },
+      })),
       payer: { id: e.payer.id, name: e.payer.name, avatarUrl: e.payer.avatarUrl },
     })),
     items: g.items.map(i => ({ amountCents: i.amountCents })),

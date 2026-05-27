@@ -158,9 +158,16 @@ export const groupsRepo = {
   },
 
   async removeGuestMember(guestId: string, requestingUserId: string) {
-    const guest = await prisma.guestMember.findUnique({ where: { id: guestId } })
+    const guest = await prisma.guestMember.findUnique({
+      where: { id: guestId },
+      include: { group: { select: { createdBy: true } } },
+    })
     if (!guest) return
-    if (guest.addedBy !== requestingUserId) throw new Error('Only the person who added this guest can remove them.')
+    const isAdder = guest.addedBy === requestingUserId
+    const isOwner = guest.group.createdBy === requestingUserId
+    if (!isAdder && !isOwner) {
+      throw new Error('Only the person who added this guest, or the group owner, can remove them.')
+    }
     await prisma.guestMember.delete({ where: { id: guestId } })
   },
 

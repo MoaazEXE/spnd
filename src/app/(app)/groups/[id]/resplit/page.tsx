@@ -1,14 +1,16 @@
 import Link from 'next/link'
-import { ArrowLeft, Scale } from 'lucide-react'
+import { Scale } from 'lucide-react'
 import { notFound, redirect } from 'next/navigation'
 import { groupsRepo } from '@/data/groups.repo'
 import { getUserContext } from '@/lib/user-context'
-import { computeBalances, equalSplit } from '@/core/debt/groupBalances'
+import { computeBalances } from '@/core/debt/groupBalances'
 import { resplitAll } from '@/app/actions/groups'
 import { Avatar } from '@/components/ui/avatar'
 import { Card } from '@/components/ui/card'
 import { fmtCurrency } from '@/lib/formatters'
 import { cn } from '@/lib/utils'
+import { GroupBackLink } from '../../_components/group-back-link'
+import { ApplyResplitButton } from './_components/apply-button'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -66,18 +68,12 @@ export default async function ResplitAllPage({ params }: PageProps) {
   const anyChange = rows.some(r => r.delta !== 0)
 
   return (
-    <div className="max-w-[640px] mx-auto px-5 lg:px-12 pt-4 lg:pt-8 pb-32 lg:pb-16">
+    <div className="mx-auto px-5 lg:px-8 pt-4 lg:pt-8 pb-32 lg:pb-16 max-w-[640px] lg:max-w-5xl">
       <div className="mb-3">
-        <Link
-          href={`/groups/${id}`}
-          prefetch
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft size={16} strokeWidth={2} />
-          {group.name}
-        </Link>
+        <GroupBackLink groupId={id} groupName={group.name} />
       </div>
 
+      <div className="lg:bg-card lg:rounded-2xl lg:shadow-card lg:p-8">
       <h1 className="font-display text-3xl lg:text-4xl font-semibold tracking-tight text-foreground">
         Re-split all
       </h1>
@@ -138,25 +134,19 @@ export default async function ResplitAllPage({ params }: PageProps) {
             className="fixed lg:static bottom-[60px] lg:bottom-auto inset-x-0 lg:inset-auto px-5 lg:px-0 py-3 lg:py-0 lg:mt-6 bg-background lg:bg-transparent border-t lg:border-t-0 border-sep z-10"
           >
             <input type="hidden" name="groupId" value={id} />
-            <div className="max-w-[640px] mx-auto flex gap-2.5">
+            <div className="max-w-[640px] lg:max-w-none mx-auto flex gap-2.5 lg:justify-end">
               <Link
-                href={`/groups/${id}`}
-                className="flex-1 h-12 rounded-lg inline-flex items-center justify-center text-sm font-semibold text-foreground hover:bg-muted transition-colors"
+                href={`/groups?selected=${id}`}
+                className="flex-1 lg:flex-none lg:px-6 h-12 rounded-lg inline-flex items-center justify-center text-sm font-semibold text-foreground hover:bg-muted transition-colors"
               >
                 Cancel
               </Link>
-              <button
-                type="submit"
-                disabled={!anyChange}
-                className="flex-[1.4] h-12 rounded-lg bg-primary text-primary-foreground text-sm font-semibold inline-flex items-center justify-center gap-2 hover:bg-primary-deep transition-colors active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <Scale size={16} strokeWidth={2} />
-                {anyChange ? 'Apply re-split' : 'Already even'}
-              </button>
+              <ApplyResplitButton anyChange={anyChange} />
             </div>
           </form>
         </>
       )}
+      </div>
     </div>
   )
 }

@@ -43,7 +43,7 @@ export const expensesRepo = {
       include: {
         shares: true,
         guestShares: {
-          include: { guest: { select: { addedBy: true } } },
+          include: { guest: { select: { id: true, addedBy: true } } },
         },
         payer: { select: { id: true, name: true } },
       },

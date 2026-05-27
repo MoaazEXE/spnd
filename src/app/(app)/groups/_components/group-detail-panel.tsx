@@ -33,6 +33,7 @@ interface Props {
   youBalanceCents: number
   settlePlan: PlanRow[]
   openProposalsCount: number
+  onAfterRemoved?: () => void
 }
 
 export function GroupDetailPanel({
@@ -47,6 +48,7 @@ export function GroupDetailPanel({
   youBalanceCents,
   settlePlan,
   openProposalsCount,
+  onAfterRemoved,
 }: Props) {
   const fmt = useFmt()
   const router = useRouter()
@@ -85,14 +87,19 @@ export function GroupDetailPanel({
   }
 
   const hasSplitActivity = activity.some(a => a.type === 'split')
-  const memberCount = members.length
+  // Resplit-all only matters when there are at least two participants — members
+  // OR guests. A solo user with one guest still has a real "split with".
+  const memberCount = members.length + guests.length
 
   const balanceColor =
     youBalanceCents > 0 ? 'text-primary' : youBalanceCents < 0 ? 'text-coral-deep' : 'text-foreground'
 
-  const memberNameList = members
-    .map(m => (m.id === currentUserId ? 'You' : m.name))
-    .join(', ')
+  // Combined people strip: members first, then guests (no avatar URL).
+  const people: { id: string; name: string; avatarUrl: string | null }[] = [
+    ...members.map(m => ({ id: m.id, name: m.id === currentUserId ? 'You' : m.name, avatarUrl: m.avatarUrl })),
+    ...guests.map(g => ({ id: `guest:${g.id}`, name: g.name, avatarUrl: null })),
+  ]
+  const memberNameList = people.map(p => p.name).join(', ')
 
   return (
     <div className="flex flex-col">
@@ -106,13 +113,13 @@ export function GroupDetailPanel({
             </h2>
             <div className="flex items-center gap-2">
               <div className="flex">
-                {members.slice(0, 5).map((m, i) => (
+                {people.slice(0, 5).map((p, i) => (
                   <div
-                    key={m.id}
+                    key={p.id}
                     className="rounded-full shadow-avatar-ring"
                     style={{ marginLeft: i > 0 ? -8 : 0 }}
                   >
-                    <Avatar name={m.name} src={m.avatarUrl} size={26} />
+                    <Avatar name={p.name} src={p.avatarUrl} size={26} />
                   </div>
                 ))}
               </div>
@@ -397,7 +404,7 @@ export function GroupDetailPanel({
                         <p className="text-xs font-semibold text-foreground truncate">{g.name}</p>
                         <p className="text-[10px] text-muted-foreground">Guest</p>
                       </div>
-                      {isCreator && (
+                      {(isCreator || g.addedBy === currentUserId) && (
                         <button
                           type="button"
                           onClick={() => setRemoving({ type: 'guest', id: g.id, name: g.name })}
@@ -426,6 +433,7 @@ export function GroupDetailPanel({
                   members={members}
                   currentUserId={currentUserId}
                   onTransferRequest={() => setTransferring(true)}
+                  onAfterRemoved={onAfterRemoved}
                 />
               </>
             )}

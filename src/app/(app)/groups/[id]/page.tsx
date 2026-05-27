@@ -3,6 +3,7 @@ import { groupsRepo } from '@/data/groups.repo'
 import { getUserContext } from '@/lib/user-context'
 import { computeBalances } from '@/core/debt/groupBalances'
 import { GroupDetailShell } from './_components/group-detail-shell'
+import { ViewportRedirect } from '../_components/viewport-redirect'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -88,7 +89,7 @@ export default async function GroupPage({ params }: PageProps) {
       perPersonCents: e.shares.find(s => s.userId === ctx.id)?.shareCents ?? 0,
       payerId: e.payerId,
       payerName: payerLabel,
-      shareCount: e.shares.length,
+      shareCount: e.shares.length + (e.guestShares?.length ?? 0),
       createdAt: new Date(e.createdAt).toISOString(),
     }
   })
@@ -117,17 +118,20 @@ export default async function GroupPage({ params }: PageProps) {
   }))
 
   return (
-    <GroupDetailShell
-      groupId={group.id}
-      groupName={group.name}
-      members={members}
-      guests={guests}
-      activity={activity}
-      proposals={proposals}
-      currentUserId={ctx.id}
-      isCreator={group.createdBy === ctx.id}
-      savedTogetherCents={savedTogetherCents}
-      youBalanceCents={balances.get(ctx.id) ?? 0}
-    />
+    <>
+      <ViewportRedirect desktop={`/groups?selected=${group.id}`} />
+      <GroupDetailShell
+        groupId={group.id}
+        groupName={group.name}
+        members={members}
+        guests={guests}
+        activity={activity}
+        proposals={proposals}
+        currentUserId={ctx.id}
+        isCreator={group.createdBy === ctx.id}
+        savedTogetherCents={savedTogetherCents}
+        youBalanceCents={balances.get(ctx.id) ?? 0}
+      />
+    </>
   )
 }
