@@ -37,6 +37,8 @@ interface Props {
   groupExpenses: GroupExpenseNotif[]
 }
 
+const LS_KEY = 'groupActivitySeenAt'
+
 export function NotificationBell({ items, invites, groupExpenses }: Props) {
   const [open, setOpen] = useState(false)
   const now = useTick(30_000)
@@ -45,6 +47,22 @@ export function NotificationBell({ items, invites, groupExpenses }: Props) {
   const buttonRef = useRef<HTMLButtonElement>(null)
   const [pendingId, startTransition] = useTransition()
   const [actingOn, setActingOn] = useState<string | null>(null)
+  const [seenAt, setSeenAt] = useState<number>(0)
+
+  useEffect(() => {
+    const stored = localStorage.getItem(LS_KEY)
+    if (stored) setSeenAt(Number(stored))
+  }, [])
+
+  const visibleGroupExpenses = groupExpenses.filter(
+    e => new Date(e.createdAt).getTime() > seenAt,
+  )
+
+  function clearGroupExpenses() {
+    const now = Date.now()
+    localStorage.setItem(LS_KEY, String(now))
+    setSeenAt(now)
+  }
 
   useEffect(() => {
     if (!open) return
@@ -61,7 +79,7 @@ export function NotificationBell({ items, invites, groupExpenses }: Props) {
     i => getCoolingStatus({ status: 'COOLING', coolingUntil: i.coolingUntil }, now) === 'READY_TO_RESOLVE',
   )
 
-  const totalCount = ready.length + invites.length + groupExpenses.length
+  const totalCount = ready.length + invites.length + visibleGroupExpenses.length
 
   function handleClick(id: string) {
     setOpen(false)
@@ -112,11 +130,22 @@ export function NotificationBell({ items, invites, groupExpenses }: Props) {
         >
           <div className="flex items-center justify-between px-4 py-3 border-b border-sep">
             <p className="text-xs font-semibold text-foreground">Notifications</p>
-            {totalCount > 0 && (
-              <span className="px-2 py-0.5 rounded-full bg-gold-tint text-gold-deep text-[11px] font-semibold">
-                {totalCount} new
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {visibleGroupExpenses.length > 0 && (
+                <button
+                  type="button"
+                  onClick={clearGroupExpenses}
+                  className="text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Clear activity
+                </button>
+              )}
+              {totalCount > 0 && (
+                <span className="px-2 py-0.5 rounded-full bg-gold-tint text-gold-deep text-[11px] font-semibold">
+                  {totalCount} new
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="max-h-[420px] overflow-y-auto">
@@ -169,13 +198,13 @@ export function NotificationBell({ items, invites, groupExpenses }: Props) {
               </>
             )}
 
-            {groupExpenses.length > 0 && (
+            {visibleGroupExpenses.length > 0 && (
               <>
                 <p className="px-4 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                   Group activity
                 </p>
                 <ul className="pb-1">
-                  {groupExpenses.map(exp => (
+                  {visibleGroupExpenses.map(exp => (
                     <li key={exp.id} className="border-b border-sep last:border-b-0">
                       <a
                         href={`/groups/${exp.groupId}`}
