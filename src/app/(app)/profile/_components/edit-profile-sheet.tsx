@@ -19,25 +19,11 @@ type AvailabilityState =
   | { status: 'available' }
   | { status: 'unavailable'; reason: string }
 
-function msUntilNextChange(updatedAt: Date | string | null): number {
-  if (!updatedAt) return 0
-  const d = updatedAt instanceof Date ? updatedAt : new Date(updatedAt)
-  return Math.max(0, 24 * 60 * 60 * 1000 - (Date.now() - d.getTime()))
-}
-
-function fmtCooldown(ms: number): string {
-  const h = Math.floor(ms / 3600000)
-  const m = Math.ceil((ms % 3600000) / 60000)
-  if (h > 0) return `${h}h ${m}m`
-  return `${m}m`
-}
-
 interface Props {
   initialName: string
   initialAvatarUrl: string | null
   email: string
   initialUsername: string | null
-  usernameUpdatedAt: Date | string | null
   onClose: () => void
 }
 
@@ -46,7 +32,6 @@ export function EditProfileSheet({
   initialAvatarUrl,
   email,
   initialUsername,
-  usernameUpdatedAt,
   onClose,
 }: Props) {
   const router = useRouter()
@@ -65,8 +50,6 @@ export function EditProfileSheet({
   const trimmedName = name.trim()
   const normalizedUsername = normalizeUsername(username)
   const usernameChanged = normalizedUsername !== (initialUsername?.toLowerCase() ?? '')
-  const cooldownMs = msUntilNextChange(usernameUpdatedAt)
-  const isUsernameLocked = cooldownMs > 0
 
   const localValidation = usernameChanged ? validateUsername(normalizedUsername) : { ok: true as const }
 
@@ -119,10 +102,6 @@ export function EditProfileSheet({
     }
     if (usernameChanged && availability.status !== 'available') {
       setError('Please wait for username availability to confirm.')
-      return
-    }
-    if (usernameChanged && isUsernameLocked) {
-      setError(`You can change your username again in ${fmtCooldown(cooldownMs)}.`)
       return
     }
 
@@ -246,13 +225,6 @@ export function EditProfileSheet({
           >
             Username
           </label>
-          {isUsernameLocked && (
-            <div className="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 px-3 py-2.5">
-              <p className="text-xs text-amber-700 dark:text-amber-400">
-                Username locked for another {fmtCooldown(cooldownMs)} — you can change it once every 24 hours.
-              </p>
-            </div>
-          )}
           <div className="relative">
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-medium text-base select-none">
               @
@@ -262,9 +234,8 @@ export function EditProfileSheet({
               type="text"
               value={username}
               onChange={e => setUsername(e.target.value)}
-              disabled={isUsernameLocked}
               maxLength={20}
-              className="w-full h-13 pl-8 pr-12 rounded-lg bg-background border border-border text-base font-medium text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full h-13 pl-8 pr-12 rounded-lg bg-background border border-border text-base font-medium text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
             />
             <div className="absolute right-4 top-1/2 -translate-y-1/2">
               {usernameChanged && availability.status === 'checking' && (
@@ -287,9 +258,9 @@ export function EditProfileSheet({
           {usernameChanged && availability.status === 'available' && (
             <p className="text-xs text-green-600 px-1">@{normalizedUsername} is available!</p>
           )}
-          {!usernameChanged && !isUsernameLocked && (
+          {!usernameChanged && (
             <p className="text-[11px] text-muted-foreground">
-              Others can find you with @username. Changeable once every 24 hours.
+              Others can find and invite you using @username.
             </p>
           )}
         </div>

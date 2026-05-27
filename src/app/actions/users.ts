@@ -172,16 +172,6 @@ export async function updateUsername(
     const dbUser = await usersRepo.findById(user.id)
     if (!dbUser) throw new ValidationError('User not found.')
 
-    // 24-hour cooldown
-    if (dbUser.usernameUpdatedAt) {
-      const msSince = Date.now() - dbUser.usernameUpdatedAt.getTime()
-      const msLeft = 24 * 60 * 60 * 1000 - msSince
-      if (msLeft > 0) {
-        const hLeft = Math.ceil(msLeft / 3600000)
-        throw new ValidationError(`You can change your username again in ${hLeft} hour${hLeft === 1 ? '' : 's'}.`)
-      }
-    }
-
     const rawUsername = getRequiredString(formData, 'username')
     const username = normalizeUsername(rawUsername)
     const validation = validateUsername(username)

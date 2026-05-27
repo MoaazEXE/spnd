@@ -602,7 +602,6 @@ export function ProfileShell({
           initialAvatarUrl={avatarUrl}
           email={email}
           initialUsername={username}
-          usernameUpdatedAt={usernameUpdatedAt}
           onClose={() => setEditing(false)}
         />
       )}
