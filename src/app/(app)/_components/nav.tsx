@@ -40,13 +40,17 @@ export function Nav({ name, email, initial, avatarUrl, savedCents, coolingCount,
 
   return (
     <>
-      {/* Desktop sidebar */}
-      <aside className="hidden lg:flex w-60 shrink-0 h-screen sticky top-0 border-r border-sep bg-bg-deep flex-col px-4 pt-6 pb-5">
-        <div className="px-2 pb-5">
-          <BrandMark size="md" href="/dashboard" />
+      {/* Sidebar — icon-only at md (768–1023px), full at lg (1024px+) */}
+      <aside className="hidden md:flex md:w-16 lg:w-60 shrink-0 h-screen sticky top-0 border-r border-sep bg-bg-deep flex-col md:items-center md:px-2 lg:items-stretch lg:px-4 pt-6 pb-5">
+        <div className="pb-5 md:px-0 lg:px-2">
+          <BrandMark size="md" href="/dashboard" className="lg:block hidden" />
+          {/* Icon-only brand dot at md */}
+          <Link href="/dashboard" className="lg:hidden flex items-center justify-center w-10 h-10 rounded-full bg-primary text-primary-foreground text-sm font-bold">
+            S
+          </Link>
         </div>
 
-        <div className="mb-5 rounded-lg bg-card px-4 py-3.5 shadow-card">
+        <div className="mb-5 rounded-lg bg-card shadow-card w-full lg:px-4 lg:py-3.5 md:px-2 md:py-2 lg:block hidden">
           <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
             Saved by waiting
           </p>
@@ -55,7 +59,7 @@ export function Nav({ name, email, initial, avatarUrl, savedCents, coolingCount,
           </p>
         </div>
 
-        <nav className="flex flex-col gap-0.5 flex-1">
+        <nav className="flex flex-col gap-0.5 flex-1 w-full">
           {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
             const active = isActive(href)
             const count = badgeCount(href)
@@ -64,19 +68,27 @@ export function Nav({ name, email, initial, avatarUrl, savedCents, coolingCount,
                 key={href}
                 href={href}
                 prefetch
+                title={label}
                 className={cn(
-                  'h-10 px-3.5 rounded-sm flex items-center gap-3 text-sm font-medium transition-colors',
+                  'h-10 rounded-sm flex items-center transition-colors md:justify-center lg:justify-start md:px-0 lg:px-3.5 md:gap-0 lg:gap-3 text-sm font-medium',
                   active
                     ? 'bg-card text-primary-deep shadow-active-inset'
                     : 'text-muted-foreground hover:bg-foreground/5 hover:text-foreground',
                 )}
               >
-                <Icon size={18} strokeWidth={1.8} />
-                <span className="flex-1">{label}</span>
+                <div className="relative flex-shrink-0">
+                  <Icon size={18} strokeWidth={1.8} />
+                  {count > 0 && (
+                    <span className="lg:hidden absolute -top-1.5 -right-1.5 h-4 min-w-4 px-0.5 rounded-full bg-primary text-primary-foreground text-[9px] font-bold inline-flex items-center justify-center tabular-nums leading-none">
+                      {count > 9 ? '9+' : count}
+                    </span>
+                  )}
+                </div>
+                <span className="flex-1 hidden lg:block">{label}</span>
                 {count > 0 && (
                   <span
                     className={cn(
-                      'h-5 min-w-5 px-1.5 rounded-full text-[11px] font-semibold inline-flex items-center justify-center tabular-nums',
+                      'hidden lg:inline-flex h-5 min-w-5 px-1.5 rounded-full text-[11px] font-semibold items-center justify-center tabular-nums',
                       active
                         ? 'bg-primary-tint text-primary-deep'
                         : 'bg-foreground/6 text-muted-foreground',
@@ -90,8 +102,8 @@ export function Nav({ name, email, initial, avatarUrl, savedCents, coolingCount,
           })}
         </nav>
 
-        <div className="flex items-center gap-2.5 rounded-md bg-card px-3 py-2.5 shadow-card">
-          <Link href="/profile" className="flex items-center gap-2.5 flex-1 min-w-0 hover:opacity-80 transition-opacity">
+        <div className="flex items-center gap-2.5 rounded-md bg-card shadow-card w-full md:flex-col md:p-2 lg:flex-row lg:px-3 lg:py-2.5">
+          <Link href="/profile" title={name} className="flex items-center gap-2.5 lg:flex-1 min-w-0 hover:opacity-80 transition-opacity">
             {avatarUrl ? (
               <img src={avatarUrl} alt={name} className="flex-shrink-0 w-8 h-8 rounded-full object-cover" />
             ) : (
@@ -99,7 +111,7 @@ export function Nav({ name, email, initial, avatarUrl, savedCents, coolingCount,
                 {initial}
               </div>
             )}
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 hidden lg:block">
               <p className="text-xs font-semibold truncate">{name}</p>
               <p className="text-[11px] text-muted-foreground truncate">{email}</p>
             </div>
@@ -108,7 +120,7 @@ export function Nav({ name, email, initial, avatarUrl, savedCents, coolingCount,
             <button
               type="submit"
               aria-label="Sign out"
-              className="w-11 h-11 -mr-2 flex items-center justify-center rounded text-muted-foreground hover:bg-foreground/6 transition-colors"
+              className="w-8 h-8 flex items-center justify-center rounded text-muted-foreground hover:bg-foreground/6 transition-colors"
             >
               <LogOut size={14} strokeWidth={1.8} />
             </button>
@@ -116,8 +128,8 @@ export function Nav({ name, email, initial, avatarUrl, savedCents, coolingCount,
         </div>
       </aside>
 
-      {/* Mobile bottom tab bar */}
-      <nav className="flex lg:hidden fixed bottom-0 inset-x-0 z-30 bg-background/95 backdrop-blur-sm border-t border-sep h-[60px]">
+      {/* Mobile bottom tab bar — hidden at md+ where sidebar takes over */}
+      <nav className="flex md:hidden fixed bottom-0 inset-x-0 z-30 bg-background/95 backdrop-blur-sm border-t border-sep h-[60px]">
         {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
           const active = isActive(href)
           const count = badgeCount(href)

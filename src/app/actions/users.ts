@@ -11,6 +11,7 @@ import {
   ValidationError,
   withValidation,
 } from '@/lib/form-data'
+import { guard } from '@/lib/rate-limit'
 import type { TimeCostMode } from '@/types'
 import { CURRENCIES, type CurrencyCode } from '@/lib/formatters'
 
@@ -40,6 +41,7 @@ export async function updateProfile(
     let avatarUrl: string | undefined
     if (avatarFile instanceof File && avatarFile.size > 0) {
       if (avatarFile.size > 2 * 1024 * 1024) throw new ValidationError('Avatar must be under 2 MB.')
+      await guard(`uploadAvatar:${user.id}`, 5, 3600)
 
       // Validate file type by magic bytes (not just extension or Content-Type header)
       const header = new Uint8Array(await avatarFile.slice(0, 12).arrayBuffer())

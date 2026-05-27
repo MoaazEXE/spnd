@@ -22,6 +22,10 @@ export async function GET() {
     const user = await getCurrentUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+    const { consume } = await import('@/lib/rate-limit')
+    const csvOk = await consume(`csv:${user.id}`, 5, 3600).catch(() => true)
+    if (!csvOk) return new NextResponse('Too many export requests — try again later.', { status: 429 })
+
     const LIMIT = 10_000
     const [items, expenses] = await Promise.all([
       prisma.item.findMany({

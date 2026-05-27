@@ -15,6 +15,10 @@ export async function GET(req: Request) {
     return new Response('Unauthorized', { status: 401 })
   }
 
+  const { consume } = await import('@/lib/rate-limit')
+  const searchOk = await consume(`search:${user.id}`, 60, 60).catch(() => true)
+  if (!searchOk) return new Response('Too many requests', { status: 429 })
+
   if (!q) {
     const recent = (await itemsRepo.findManyByUser(user.id)).slice(0, 5)
     return NextResponse.json({

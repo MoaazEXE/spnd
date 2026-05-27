@@ -178,3 +178,11 @@ model ExpenseShare {
   @@unique([expenseId, userId])
   @@index([userId])
 }
+
+model RateLimit {
+  key         String   @id
+  windowStart DateTime
+  count       Int
+
+  @@index([windowStart])
+}

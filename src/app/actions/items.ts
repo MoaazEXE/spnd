@@ -13,6 +13,7 @@ import {
   ValidationError,
   withValidation,
 } from '@/lib/form-data'
+import { guard } from '@/lib/rate-limit'
 import { CATEGORIES, DEFAULT_CATEGORY } from '@/core/categories/categories'
 import type { CoolingUnit } from '@/types'
 
@@ -53,6 +54,7 @@ export async function logItem(
     }
 
     userId = await getAuthUserId()
+    await guard(`logItem:${userId}`, 30, 60)
     const coolingUntil = computeCoolingUntil(new Date(), coolingValue, coolingUnit)
     const note = getString(formData, 'note')?.trim() || undefined
     const rawCategory = getString(formData, 'category')?.trim()

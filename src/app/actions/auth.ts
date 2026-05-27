@@ -1,8 +1,15 @@
 'use server'
 
 import { redirect } from 'next/navigation'
+import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { ensureUserRecord } from '@/lib/ensure-user'
+import { consume } from '@/lib/rate-limit'
+
+async function getClientIp(): Promise<string> {
+  const hdrs = await headers()
+  return (hdrs.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'anon'
+}
 
 export async function signIn(
   prevState: string | null,
@@ -13,6 +20,10 @@ export async function signIn(
   if (typeof email !== 'string' || typeof password !== 'string') {
     return 'Invalid form submission.'
   }
+
+  const ip = await getClientIp()
+  const ok = await consume(`signIn:${ip}`, 10, 600).catch(() => true)
+  if (!ok) return 'Too many login attempts — try again in 10 minutes.'
 
   const supabase = await createClient()
   const { data, error } = await supabase.auth.signInWithPassword({ email, password })
@@ -41,6 +52,10 @@ export async function signUp(
   ) {
     return 'Invalid form submission.'
   }
+
+  const ip = await getClientIp()
+  const ok = await consume(`signUp:${ip}`, 10, 600).catch(() => true)
+  if (!ok) return 'Too many attempts from this network — try again in 10 minutes.'
 
   const supabase = await createClient()
   const { data, error } = await supabase.auth.signUp({

@@ -14,6 +14,7 @@ import {
   ValidationError,
   withValidation,
 } from '@/lib/form-data'
+import { guard } from '@/lib/rate-limit'
 
 async function getAuthUserId(): Promise<string> {
   const user = await getCurrentUser()
@@ -62,6 +63,7 @@ export async function createGroup(
     const name = getRequiredString(formData, 'name')
     if (name.length > 60) throw new ValidationError('Group name is too long.')
     userId = await getAuthUserId()
+    await guard(`createGroup:${userId}`, 10, 3600)
     const group = await groupsRepo.create({ name, createdBy: userId })
     newId = group.id
   }, 'action:createGroup')
@@ -82,6 +84,7 @@ export async function inviteMemberByEmail(
     const groupId = getRequiredString(formData, 'groupId')
     const email = getRequiredString(formData, 'email').toLowerCase()
     actingUserId = await getAuthUserId()
+    await guard(`invite:${actingUserId}`, 10, 60)
     await requireActiveMembership(groupId, actingUserId)
 
     const invitee = await prisma.user.findUnique({ where: { email } })
@@ -321,6 +324,7 @@ export async function addExpense(
     const description = getRequiredString(formData, 'description')
     const amountCents = getRequiredCents(formData, 'amount')
     const userId = await getAuthUserId()
+    await guard(`addExpense:${userId}`, 60, 60)
     await requireActiveMembership(groupId, userId)
 
     const rawPayerId = formData.get('payerId') as string | null
@@ -573,6 +577,7 @@ export async function proposeGroupCooling(
     const amountCents = getRequiredCents(formData, 'amount')
     const coolingDays = Math.max(1, Math.min(365, parseInt(formData.get('coolingDays') as string || '3', 10)))
     const userId = await getAuthUserId()
+    await guard(`propose:${userId}`, 60, 60)
     await requireActiveMembership(groupId, userId)
 
     const group = await prisma.group.findUnique({
