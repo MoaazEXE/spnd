@@ -100,6 +100,8 @@ export async function deleteAccount(): Promise<string | null> {
     await prisma.group.deleteMany({ where: { createdBy: userId } })
     // Remove any expenses paid by this user in groups they didn't create
     await prisma.expense.deleteMany({ where: { payerId: userId } })
+    // Remove guests this user added in other people's groups — FK to User has no cascade
+    await prisma.guestMember.deleteMany({ where: { addedBy: userId } }).catch(() => {})
     // Now the user row can be safely deleted (Items, GroupMember, ExpenseShare cascade)
     await prisma.user.delete({ where: { id: userId } })
   } catch (err) {

@@ -342,8 +342,13 @@ export async function addExpense(
     }
 
     const requested = parseParticipants(formData)
-    const participants = requested.length > 0 ? requested : Array.from(activeIds)
     const requestedGuests = parseGuestParticipants(formData)
+    // Only default to "everyone" when the user submitted no selections at all.
+    // If they picked only guests, respect that — don't silently add every member.
+    const participants =
+      requested.length === 0 && requestedGuests.length === 0
+        ? Array.from(activeIds)
+        : requested
 
     for (const id of participants) {
       if (!activeIds.has(id)) throw new ValidationError('One of the selected people is not a group member.')
@@ -355,15 +360,23 @@ export async function addExpense(
       throw new ValidationError('Pick at least one person to split this with.')
     }
 
-    // Equal split across members + guests; remainder to payer
+    // Equal split across members + guests; remainder goes to the payer if they're
+    // a participant, otherwise to the first share so totals reconcile.
     const totalPeople = participants.length + requestedGuests.length
     const base = Math.floor(amountCents / totalPeople)
     const remainder = amountCents - base * totalPeople
-    const shares = participants.map(uid => ({
+    const payerIsParticipant = participants.includes(payerId)
+    const shares = participants.map((uid, i) => ({
       userId: uid,
-      shareCents: uid === payerId ? base + remainder : base,
+      shareCents:
+        (payerIsParticipant ? uid === payerId : i === 0)
+          ? base + remainder
+          : base,
     }))
-    const guestShares = requestedGuests.map(gid => ({ guestId: gid, shareCents: base }))
+    const guestShares = requestedGuests.map((gid, i) => ({
+      guestId: gid,
+      shareCents: !payerIsParticipant && participants.length === 0 && i === 0 ? base + remainder : base,
+    }))
 
     await prisma.expense.create({
       data: {
@@ -534,7 +547,7 @@ export async function proposeGroupCooling(
     groupId = getRequiredString(formData, 'groupId')
     const description = getRequiredString(formData, 'description')
     const amountCents = getRequiredCents(formData, 'amount')
-    const coolingDays = Math.max(1, Math.min(90, parseInt(formData.get('coolingDays') as string || '3', 10)))
+    const coolingDays = Math.max(1, Math.min(365, parseInt(formData.get('coolingDays') as string || '3', 10)))
     const userId = await getAuthUserId()
     await requireActiveMembership(groupId, userId)
 
@@ -653,6 +666,7 @@ export async function resplitAll(formData: FormData): Promise<void> {
   const memberIds = group.members.map(m => m.userId)
   const guestIds = group.guestMembers.map(g => g.id)
   const totalPeople = memberIds.length + guestIds.length
+  if (totalPeople === 0) throw new ValidationError('This group has no one to split with.')
 
   await prisma.$transaction(
     group.expenses.flatMap(e => {

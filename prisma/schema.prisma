@@ -146,7 +146,7 @@ model GuestMember {
   createdAt DateTime @default(now())
 
   group       Group             @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  addedByUser User              @relation("GuestMembersAdded", fields: [addedBy], references: [id])
+  addedByUser User              @relation("GuestMembersAdded", fields: [addedBy], references: [id], onDelete: Cascade)
   expenseShares GuestExpenseShare[]
 
   @@index([groupId])
