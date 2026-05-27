@@ -47,12 +47,15 @@ export function StepIncome({
       <div className="space-y-4">
         <div className="space-y-3">
           <div className="space-y-2">
-            <label
-              htmlFor="onboarding-income"
-              className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-            >
-              Monthly take-home income
-            </label>
+            <div className="flex items-baseline justify-between">
+              <label
+                htmlFor="onboarding-income"
+                className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+              >
+                Monthly take-home income
+              </label>
+              <span className="text-[11px] text-muted-foreground/70">optional</span>
+            </div>
             <input
               id="onboarding-income"
               type="number"
@@ -67,12 +70,15 @@ export function StepIncome({
           </div>
 
           <div className="space-y-2">
-            <label
-              htmlFor="onboarding-hours"
-              className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-            >
-              Working hours per week
-            </label>
+            <div className="flex items-baseline justify-between">
+              <label
+                htmlFor="onboarding-hours"
+                className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+              >
+                Working hours per week
+              </label>
+              <span className="text-[11px] text-muted-foreground/70">optional</span>
+            </div>
             <input
               id="onboarding-hours"
               type="number"
@@ -85,6 +91,9 @@ export function StepIncome({
               className="w-full h-13 px-4 rounded-xl bg-muted/50 border border-border text-base font-medium text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
             />
           </div>
+          <p className="text-[11px] text-muted-foreground px-1">
+            You can always add this later in Settings → Income.
+          </p>
         </div>
 
         {error && (
@@ -111,15 +120,6 @@ export function StepIncome({
             {isPending ? 'Setting up…' : 'Get started'}
           </button>
         </div>
-
-        <button
-          type="button"
-          onClick={onSubmit}
-          disabled={isPending}
-          className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors py-1 disabled:opacity-40"
-        >
-          Skip for now
-        </button>
       </div>
     </div>
   )

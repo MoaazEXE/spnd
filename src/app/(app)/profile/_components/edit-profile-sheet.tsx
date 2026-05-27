@@ -1,51 +1,104 @@
 'use client'
 
-import { useTransition, useRef, useState } from 'react'
+import { useTransition, useRef, useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Camera } from 'lucide-react'
-import { updateProfile } from '@/app/actions/users'
+import { Camera, CheckCircle2, XCircle, Loader2 } from 'lucide-react'
+import { updateProfile, updateUsername, checkUsernameAvailable } from '@/app/actions/users'
+import { validateUsername, normalizeUsername } from '@/lib/username'
 import { ErrorBanner } from '@/components/ui/error-banner'
 import { SheetFrame } from '@/components/ui/sheet-frame'
 import { CropAvatarSheet } from './crop-avatar-sheet'
 import { cn } from '@/lib/utils'
 
-const MAX_RAW_BYTES = 10 * 1024 * 1024  // reject before crop if file is absurdly large
+const MAX_RAW_BYTES = 10 * 1024 * 1024
+
+type AvailabilityState =
+  | { status: 'idle' }
+  | { status: 'checking' }
+  | { status: 'available' }
+  | { status: 'unavailable'; reason: string }
+
+function msUntilNextChange(updatedAt: Date | string | null): number {
+  if (!updatedAt) return 0
+  const d = updatedAt instanceof Date ? updatedAt : new Date(updatedAt)
+  return Math.max(0, 24 * 60 * 60 * 1000 - (Date.now() - d.getTime()))
+}
+
+function fmtCooldown(ms: number): string {
+  const h = Math.floor(ms / 3600000)
+  const m = Math.ceil((ms % 3600000) / 60000)
+  if (h > 0) return `${h}h ${m}m`
+  return `${m}m`
+}
 
 interface Props {
   initialName: string
   initialAvatarUrl: string | null
   email: string
+  initialUsername: string | null
+  usernameUpdatedAt: Date | string | null
   onClose: () => void
 }
 
-export function EditProfileSheet({ initialName, initialAvatarUrl, email, onClose }: Props) {
+export function EditProfileSheet({
+  initialName,
+  initialAvatarUrl,
+  email,
+  initialUsername,
+  usernameUpdatedAt,
+  onClose,
+}: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [name, setName] = useState(initialName)
   const [preview, setPreview] = useState<string | null>(initialAvatarUrl)
+  const [username, setUsername] = useState(initialUsername ?? '')
+  const [availability, setAvailability] = useState<AvailabilityState>({ status: 'idle' })
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Raw object URL passed into the crop sheet
   const [cropSrc, setCropSrc] = useState<string | null>(null)
-  // Compressed + cropped blob ready to upload
   const compressedRef = useRef<Blob | null>(null)
-
   const fileRef = useRef<HTMLInputElement>(null)
 
   const trimmedName = name.trim()
-  const dirty = (trimmedName !== initialName && trimmedName.length > 0) || compressedRef.current !== null
+  const normalizedUsername = normalizeUsername(username)
+  const usernameChanged = normalizedUsername !== (initialUsername?.toLowerCase() ?? '')
+  const cooldownMs = msUntilNextChange(usernameUpdatedAt)
+  const isUsernameLocked = cooldownMs > 0
+
+  const localValidation = usernameChanged ? validateUsername(normalizedUsername) : { ok: true as const }
+
+  useEffect(() => {
+    if (!usernameChanged || !localValidation.ok) {
+      setAvailability({ status: 'idle' })
+      return
+    }
+    setAvailability({ status: 'checking' })
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(async () => {
+      const result = await checkUsernameAvailable(username)
+      setAvailability(result.available
+        ? { status: 'available' }
+        : { status: 'unavailable', reason: result.reason ?? 'Not available.' })
+    }, 400)
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [username, usernameChanged])
+
+  const usernameValid = !usernameChanged || availability.status === 'available'
+  const nameDirty = trimmedName !== initialName && trimmedName.length > 0
+  const dirty = nameDirty || compressedRef.current !== null || usernameChanged
 
   function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    e.target.value = ''  // reset so re-picking same file triggers onChange again
-
+    e.target.value = ''
     if (file.size > MAX_RAW_BYTES) {
       setError('Image is too large (10 MB max). Please pick a smaller file.')
       return
     }
-
     setError(null)
     setCropSrc(URL.createObjectURL(file))
   }
@@ -60,27 +113,48 @@ export function EditProfileSheet({ initialName, initialAvatarUrl, email, onClose
     e.preventDefault()
     setError(null)
 
-    const fd = new FormData()
-    fd.set('name', trimmedName)
-    if (compressedRef.current) {
-      fd.set('avatar', compressedRef.current, 'avatar.jpg')
+    if (usernameChanged && !localValidation.ok) {
+      setError(localValidation.reason)
+      return
+    }
+    if (usernameChanged && availability.status !== 'available') {
+      setError('Please wait for username availability to confirm.')
+      return
+    }
+    if (usernameChanged && isUsernameLocked) {
+      setError(`You can change your username again in ${fmtCooldown(cooldownMs)}.`)
+      return
     }
 
     startTransition(async () => {
-      const result = await updateProfile(null, fd)
-      if (result) {
-        setError(result)
-      } else {
-        toast.success('Profile updated')
-        router.refresh()
-        onClose()
+      // Profile (name + avatar) — always submit even if only username changed,
+      // so the name field is never lost. updateProfile requires name to be present.
+      const profileFd = new FormData()
+      profileFd.set('name', trimmedName || initialName)
+      if (compressedRef.current) {
+        profileFd.set('avatar', compressedRef.current, 'avatar.jpg')
       }
+
+      if (nameDirty || compressedRef.current !== null) {
+        const profileResult = await updateProfile(null, profileFd)
+        if (profileResult) { setError(profileResult); return }
+      }
+
+      if (usernameChanged) {
+        const usernameFd = new FormData()
+        usernameFd.set('username', normalizedUsername)
+        const usernameResult = await updateUsername(null, usernameFd)
+        if (usernameResult) { setError(usernameResult); return }
+      }
+
+      toast.success('Profile updated')
+      router.refresh()
+      onClose()
     })
   }
 
   const initial = (trimmedName || initialName || 'U').charAt(0).toUpperCase()
 
-  // Crop sheet takes over the whole screen while open
   if (cropSrc) {
     return (
       <CropAvatarSheet
@@ -100,7 +174,7 @@ export function EditProfileSheet({ initialName, initialAvatarUrl, email, onClose
         <button
           type="submit"
           form="edit-profile-form"
-          disabled={isPending || !dirty}
+          disabled={isPending || !dirty || !usernameValid}
           className="w-full h-14 rounded-xl bg-primary text-primary-foreground text-base font-semibold transition-all active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {isPending ? 'Saving…' : 'Save changes'}
@@ -139,15 +213,10 @@ export function EditProfileSheet({ initialName, initialAvatarUrl, email, onClose
             </div>
           </button>
           <p className="text-[11px] text-muted-foreground">Tap to change · crop &amp; rotate after picking</p>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            className="sr-only"
-            onChange={onFileChange}
-          />
+          <input ref={fileRef} type="file" accept="image/*" className="sr-only" onChange={onFileChange} />
         </div>
 
+        {/* Display name */}
         <div className="space-y-2">
           <label
             htmlFor="profile-name"
@@ -157,7 +226,6 @@ export function EditProfileSheet({ initialName, initialAvatarUrl, email, onClose
           </label>
           <input
             id="profile-name"
-            name="name"
             type="text"
             required
             maxLength={60}
@@ -170,6 +238,63 @@ export function EditProfileSheet({ initialName, initialAvatarUrl, email, onClose
           </p>
         </div>
 
+        {/* Username */}
+        <div className="space-y-2">
+          <label
+            htmlFor="profile-username"
+            className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+          >
+            Username
+          </label>
+          {isUsernameLocked && (
+            <div className="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 px-3 py-2.5">
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                Username locked for another {fmtCooldown(cooldownMs)} — you can change it once every 24 hours.
+              </p>
+            </div>
+          )}
+          <div className="relative">
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-medium text-base select-none">
+              @
+            </span>
+            <input
+              id="profile-username"
+              type="text"
+              value={username}
+              onChange={e => setUsername(e.target.value)}
+              disabled={isUsernameLocked}
+              maxLength={20}
+              className="w-full h-13 pl-8 pr-12 rounded-lg bg-background border border-border text-base font-medium text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            />
+            <div className="absolute right-4 top-1/2 -translate-y-1/2">
+              {usernameChanged && availability.status === 'checking' && (
+                <Loader2 size={18} className="animate-spin text-muted-foreground" />
+              )}
+              {usernameChanged && availability.status === 'available' && (
+                <CheckCircle2 size={18} className="text-green-500" />
+              )}
+              {usernameChanged && availability.status === 'unavailable' && (
+                <XCircle size={18} className="text-destructive" />
+              )}
+            </div>
+          </div>
+          {usernameChanged && !localValidation.ok && (
+            <p className="text-xs text-destructive px-1">{localValidation.reason}</p>
+          )}
+          {usernameChanged && availability.status === 'unavailable' && localValidation.ok && (
+            <p className="text-xs text-destructive px-1">{availability.reason}</p>
+          )}
+          {usernameChanged && availability.status === 'available' && (
+            <p className="text-xs text-green-600 px-1">@{normalizedUsername} is available!</p>
+          )}
+          {!usernameChanged && !isUsernameLocked && (
+            <p className="text-[11px] text-muted-foreground">
+              Others can find you with @username. Changeable once every 24 hours.
+            </p>
+          )}
+        </div>
+
+        {/* Email (read-only) */}
         <div className="space-y-2">
           <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Email
