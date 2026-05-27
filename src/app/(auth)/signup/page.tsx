@@ -75,6 +75,13 @@ export default function SignupPage() {
         <SubmitButton pending={isPending} pendingLabel="Creating account…">
           Create account
         </SubmitButton>
+        <p className="text-center text-xs text-subtle-foreground">
+          By creating an account, you agree to our{' '}
+          <Link href="/privacy" prefetch className="underline underline-offset-2 hover:text-muted-foreground transition-colors">
+            Privacy Policy
+          </Link>
+          .
+        </p>
       </form>
 
       <p className="mt-6 text-center text-sm text-muted-foreground">

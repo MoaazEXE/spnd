@@ -88,6 +88,13 @@ export default async function Home() {
               Log in
             </Link>
           </p>
+          <p className="text-center text-xs text-subtle-foreground">
+            By creating an account, you agree to our{' '}
+            <Link href="/privacy" prefetch className="underline underline-offset-2 hover:text-muted-foreground transition-colors">
+              Privacy Policy
+            </Link>
+            .
+          </p>
         </div>
       </div>
     </main>
