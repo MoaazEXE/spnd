@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, ShoppingBag, Clock, UserPlus } from 'lucide-react'
 import { useFmt } from '@/lib/currency-context'
@@ -53,7 +53,11 @@ export function GroupDetailShell({
   const [inviting, setInviting] = useState(false)
   const [transferring, setTransferring] = useState(false)
   const [editing, setEditing] = useState<GroupActivityView | null>(null)
+  const [optimisticExpenses, setOptimisticExpenses] = useState<GroupActivityView[]>([])
   useGroupRealtime(groupId)
+
+  // Clear optimistic expenses when server data refreshes
+  useEffect(() => { setOptimisticExpenses([]) }, [activity])
 
   const hasSplitActivity = activity.some(a => a.type === 'split')
 
@@ -156,7 +160,7 @@ export function GroupDetailShell({
 
       {tab === 'activity' && (
         <ActivityList
-          activity={activity}
+          activity={[...optimisticExpenses, ...activity]}
           onEdit={setEditing}
           memberCount={members.length + guests.length}
           groupId={groupId}
@@ -228,6 +232,7 @@ export function GroupDetailShell({
           }))}
           guests={guests}
           onClose={() => setAdding(false)}
+          onExpenseAdded={expense => setOptimisticExpenses(prev => [expense, ...prev])}
         />
       )}
       {inviting && (

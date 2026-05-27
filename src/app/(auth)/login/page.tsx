@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useEffect } from 'react'
 import Link from 'next/link'
 import { signIn } from '@/app/actions/auth'
 import { Input } from '@/components/ui/input'
@@ -12,6 +12,14 @@ import { AuthHero } from '../_components/auth-hero'
 
 export default function LoginPage() {
   const [error, action, isPending] = useActionState(signIn, null)
+
+  useEffect(() => {
+    function onPageShow(e: PageTransitionEvent) {
+      if (e.persisted) window.location.reload()
+    }
+    window.addEventListener('pageshow', onPageShow)
+    return () => window.removeEventListener('pageshow', onPageShow)
+  }, [])
 
   return (
     <div className="w-full max-w-sm">

@@ -22,6 +22,7 @@ interface Props {
 
 export function CoolingGrid({ items, timeCostContext }: Props) {
   const resolveSheet = useResolveSheet()
+  const { resolvedIds } = resolveSheet
   const [isDesktop, setIsDesktop] = useState(false)
 
   useEffect(() => {
@@ -32,7 +33,9 @@ export function CoolingGrid({ items, timeCostContext }: Props) {
     return () => mq.removeEventListener('change', onChange)
   }, [])
 
-  if (items.length === 0) {
+  const visibleItems = items.filter(item => !resolvedIds.has(item.id))
+
+  if (visibleItems.length === 0) {
     return (
       <EmptyState
         title="Nothing cooling."
@@ -43,7 +46,7 @@ export function CoolingGrid({ items, timeCostContext }: Props) {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-      {items.map(item => (
+      {visibleItems.map(item => (
         <CoolingCard
           key={item.id}
           item={item}

@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import { Plus } from 'lucide-react'
 import { useLogModal } from '@/app/(app)/_components/log-modal-context'
 import { useResolveSheet } from '@/app/(app)/_components/resolve-sheet-context'
@@ -25,11 +26,22 @@ interface Props {
 
 export function CoolingGrid({ items, timeCostContext }: Props) {
   const log = useLogModal()
+  const { optimisticItems, clearOptimistic } = log
   const resolveSheet = useResolveSheet()
+  const { resolvedIds } = resolveSheet
   const isDesktop = useIsDesktop()
 
+  // When server data refreshes, optimistic items have been persisted — clear them
+  useEffect(() => { clearOptimistic() }, [items, clearOptimistic])
+
+  // Merge: optimistic items first (instant feedback), then server items, excluding resolved
+  const visibleItems = [
+    ...optimisticItems.filter(o => !resolvedIds.has(o.id)),
+    ...items.filter(item => !resolvedIds.has(item.id)),
+  ]
+
   const now = new Date()
-  const readyCount = items.filter(
+  const readyCount = visibleItems.filter(
     item =>
       getCoolingStatus({ status: 'COOLING', coolingUntil: item.coolingUntil }, now) ===
       'READY_TO_RESOLVE',
@@ -42,9 +54,9 @@ export function CoolingGrid({ items, timeCostContext }: Props) {
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Cooling now
           </p>
-          {items.length > 0 && (
+          {visibleItems.length > 0 && (
             <p className="mt-0.5 text-xs text-subtle-foreground">
-              {items.length} {items.length === 1 ? 'item' : 'items'} on pause · let time decide
+              {visibleItems.length} {visibleItems.length === 1 ? 'item' : 'items'} on pause · let time decide
             </p>
           )}
         </div>
@@ -65,7 +77,7 @@ export function CoolingGrid({ items, timeCostContext }: Props) {
         </div>
       </div>
 
-      {items.length === 0 ? (
+      {visibleItems.length === 0 ? (
         <EmptyState
           icon={
             <div className="w-14 h-14 rounded-full bg-primary-tint flex items-center justify-center">
@@ -89,7 +101,7 @@ export function CoolingGrid({ items, timeCostContext }: Props) {
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {items.map(item => (
+          {visibleItems.map(item => (
             <CoolingCard
               key={item.id}
               item={item}

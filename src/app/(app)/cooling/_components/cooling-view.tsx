@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { CoolingGrid } from './cooling-grid'
 import { HistoryCard } from './history-card'
 import { CoolingTabs } from './cooling-tabs'
@@ -32,8 +32,25 @@ interface Props {
   timeCostContext: Omit<TimeCostInput, 'amountCents'> | null
 }
 
+const STORAGE_KEY = 'settle:cooling-tab'
+
 export function CoolingView({ initialTab, cooling, skipped, bought, timeCostContext }: Props) {
   const [tab, setTab] = useState<Tab>(initialTab)
+
+  // Restore last-used tab on revisit (only when URL has no explicit tab param)
+  useEffect(() => {
+    if (initialTab === 'cooling') {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY) as Tab | null
+        if (stored && stored !== 'cooling') setTab(stored)
+      } catch {}
+    }
+  }, [initialTab])
+
+  function handleTabChange(newTab: Tab) {
+    setTab(newTab)
+    try { localStorage.setItem(STORAGE_KEY, newTab) } catch {}
+  }
 
   const counts = {
     cooling: cooling.length,
@@ -45,7 +62,7 @@ export function CoolingView({ initialTab, cooling, skipped, bought, timeCostCont
   return (
     <>
       <div className="mb-6">
-        <CoolingTabs active={tab} counts={counts} onChange={setTab} />
+        <CoolingTabs active={tab} counts={counts} onChange={handleTabChange} />
       </div>
 
       {tab === 'cooling' && (

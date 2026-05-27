@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useEffect } from 'react'
 import Link from 'next/link'
 import { signUp } from '@/app/actions/auth'
 import { Input } from '@/components/ui/input'
@@ -39,6 +39,14 @@ function CheckEmailScreen() {
 
 export default function SignupPage() {
   const [state, action, isPending] = useActionState(signUp, null)
+
+  useEffect(() => {
+    function onPageShow(e: PageTransitionEvent) {
+      if (e.persisted) window.location.reload()
+    }
+    window.addEventListener('pageshow', onPageShow)
+    return () => window.removeEventListener('pageshow', onPageShow)
+  }, [])
 
   if (state === 'check-email') return <CheckEmailScreen />
 

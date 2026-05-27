@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { logItem } from '@/app/actions/items'
+import { useLogModal } from '@/app/(app)/_components/log-modal-context'
 import { calculateTimeCost } from '@/core/timecost/timeCost'
 import { CATEGORIES } from '@/core/categories/categories'
 import { Card } from '@/components/ui/card'
@@ -37,6 +38,14 @@ function presetIndexForStored(stored: string): number {
   return 3
 }
 
+const PRESET_MS = [
+  30 * 60000,        // 30 mins
+  3600000,           // 1 hour
+  5 * 3600000,       // 5 hours
+  86400000,          // 1 day
+  7 * 86400000,      // 1 week
+] as const
+
 export function LogSheet({ onClose, defaultCoolingPeriod, timeCostContext }: Props) {
   const [error, action, isPending] = useActionState(logItem, null)
   const [amountCents, setAmountCents] = useState(0)
@@ -45,16 +54,25 @@ export function LogSheet({ onClose, defaultCoolingPeriod, timeCostContext }: Pro
   const [isCustom, setIsCustom] = useState(false)
   const [category, setCategory] = useState('other')
   const wasPending = useRef(false)
+  const { addOptimistic } = useLogModal()
 
   useEffect(() => {
     if (wasPending.current && !isPending && error === null) {
+      const coolingMs = isCustom ? 86400000 : (PRESET_MS[selectedPreset] ?? 86400000)
+      addOptimistic({
+        id: `opt-${Date.now()}`,
+        title: title || 'Temptation',
+        amountCents,
+        coolingUntil: new Date(Date.now() + coolingMs),
+        createdAt: new Date(),
+      })
       toast.success(`${title || 'Temptation'} is cooling`, {
         description: "We'll quietly hold this until your time is up.",
       })
       onClose()
     }
     wasPending.current = isPending
-  }, [isPending, error, onClose, title])
+  }, [isPending, error, onClose, title, amountCents, selectedPreset, isCustom, addOptimistic])
 
   const timeCost =
     timeCostContext && amountCents > 0

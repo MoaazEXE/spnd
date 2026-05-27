@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useTransition, useState } from 'react'
 import { toast } from 'sonner'
 import { resolveItem, snoozeItem, editCoolingItem } from '@/app/actions/items'
+import { useResolveSheet } from '@/app/(app)/_components/resolve-sheet-context'
 import { CATEGORIES } from '@/core/categories/categories'
 import { fmtRM } from '@/lib/formatters'
 import { SheetFrame } from '@/components/ui/sheet-frame'
@@ -44,8 +45,10 @@ interface Props {
 export function ResolveSheet({ item, onClose, onSkipped }: Props) {
   const [pending, startTransition] = useTransition()
   const [mode, setMode] = useState<Mode>('resolve')
+  const { markResolved } = useResolveSheet()
 
   function handleBuy() {
+    markResolved(item.id)
     startTransition(async () => {
       await resolveItem(item.id, 'BOUGHT')
       onClose()
@@ -54,6 +57,7 @@ export function ResolveSheet({ item, onClose, onSkipped }: Props) {
   }
 
   function handleSkip() {
+    markResolved(item.id)
     startTransition(async () => {
       await resolveItem(item.id, 'SKIPPED')
       onClose()

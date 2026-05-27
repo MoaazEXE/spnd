@@ -11,7 +11,7 @@ import { SheetFrame } from '@/components/ui/sheet-frame'
 import { useFmt, useCurrency } from '@/lib/currency-context'
 import { CURRENCIES } from '@/lib/formatters'
 import { cn } from '@/lib/utils'
-import type { GroupGuestView } from '../page'
+import type { GroupGuestView, GroupActivityView } from '../page'
 
 interface MemberOption {
   id: string
@@ -25,9 +25,10 @@ interface Props {
   members: MemberOption[]
   guests: GroupGuestView[]
   onClose: () => void
+  onExpenseAdded?: (expense: GroupActivityView) => void
 }
 
-export function AddExpenseSheet({ groupId, members, guests, onClose }: Props) {
+export function AddExpenseSheet({ groupId, members, guests, onClose, onExpenseAdded }: Props) {
   const fmt = useFmt()
   const currencyCode = useCurrency()
   const currencySymbol = CURRENCIES.find(c => c.code === currencyCode)?.symbol ?? currencyCode
@@ -52,6 +53,19 @@ export function AddExpenseSheet({ groupId, members, guests, onClose }: Props) {
   useEffect(() => {
     if (wasPending.current && !isPending && error === null) {
       const totalMembers = members.length + guests.length
+      const payerMember = members.find(m => m.id === payerId)
+      onExpenseAdded?.({
+        id: `opt-${Date.now()}`,
+        type: 'split',
+        title: description || 'Expense',
+        description: description || 'Expense',
+        amountCents,
+        perPersonCents: totalParticipants > 0 ? Math.floor(amountCents / totalParticipants) : 0,
+        payerId,
+        payerName: payerMember?.isYou ? 'You' : (payerMember?.name ?? 'Someone'),
+        shareCount: totalParticipants,
+        createdAt: new Date().toISOString(),
+      })
       toast.success(`${description || 'Expense'} split`, {
         description:
           totalParticipants === totalMembers
@@ -61,7 +75,7 @@ export function AddExpenseSheet({ groupId, members, guests, onClose }: Props) {
       onClose()
     }
     wasPending.current = isPending
-  }, [isPending, error, onClose, description, totalParticipants, members.length, guests.length])
+  }, [isPending, error, onClose, onExpenseAdded, description, amountCents, totalParticipants, payerId, members, guests.length])
 
   function toggleMember(id: string) {
     setParticipants(prev => {
