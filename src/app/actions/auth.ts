@@ -80,8 +80,19 @@ export async function deleteAccount(): Promise<string | null> {
   if (!serviceKey) return 'Account deletion is not configured. Contact support.'
 
   try {
-    const { verifyAuthUser } = await import('@/lib/supabase/server')
-    const user = await verifyAuthUser()
+    const { verifyAuthUser, getCurrentUser } = await import('@/lib/supabase/server')
+    // Try strict (network) verification first; on network failure fall back to
+    // the cookie-derived session, which the proxy has already gated. Without
+    // this fallback, transient Supabase Auth latency surfaces as a misleading
+    // "Not authenticated" toast even when the user is fully signed in.
+    let user: { id: string } | null = null
+    try {
+      user = await verifyAuthUser()
+    } catch (verifyErr) {
+      const { logError } = await import('@/lib/log-error')
+      await logError('action:deleteAccount:verify:network', {}, verifyErr)
+      user = await getCurrentUser()
+    }
     if (!user) return 'Not authenticated.'
     userId = user.id
   } catch (err) {
