@@ -6,7 +6,7 @@ import { ArrowLeft, ArrowRight, Sparkles, Check, ShoppingBag } from 'lucide-reac
 import { toast } from 'sonner'
 import { Avatar } from '@/components/ui/avatar'
 import { Card } from '@/components/ui/card'
-import { fmtRM } from '@/lib/formatters'
+import { useFmt } from '@/lib/currency-context'
 import { cn } from '@/lib/utils'
 import { settleGroup } from '@/app/actions/groups'
 
@@ -39,6 +39,7 @@ interface Props {
 }
 
 export function SettleShell({ groupId, groupName, plan, evidence }: Props) {
+  const fmt = useFmt()
   // Default-checked: rows you pay. Incoming rows (someone owes you) default OFF
   // until you explicitly confirm receipt.
   const [confirmed, setConfirmed] = useState<Set<string>>(
@@ -156,7 +157,7 @@ export function SettleShell({ groupId, groupName, plan, evidence }: Props) {
                       <span className="font-semibold text-foreground">{row.toLabel}</span>
                     </p>
                     <p className="text-sm font-bold text-foreground tabular-nums">
-                      {fmtRM(row.amountCents)}
+                      {fmt(row.amountCents)}
                     </p>
                   </div>
                 ))}
@@ -193,7 +194,7 @@ export function SettleShell({ groupId, groupName, plan, evidence }: Props) {
                       </p>
                     </div>
                     <p className="text-sm font-semibold text-foreground tabular-nums">
-                      {fmtRM(e.amountCents, 0)}
+                      {fmt(e.amountCents, 0)}
                     </p>
                   </div>
                 ))}
@@ -243,6 +244,7 @@ function PaymentRow({
   onToggle: () => void
   last: boolean
 }) {
+  const fmt = useFmt()
   const helper = row.youArePayer
     ? 'You pay them'
     : `Confirm ${row.fromLabel} has paid you`
@@ -270,9 +272,9 @@ function PaymentRow({
       <div className="w-7 h-7 rounded-full bg-primary-tint text-primary flex items-center justify-center flex-shrink-0">
         <ArrowRight size={14} strokeWidth={2} />
       </div>
-      <Avatar name={row.youArePayer ? row.toLabel : 'You'} src={row.youArePayer ? row.toAvatarUrl : null} size={36} />
+      <Avatar name={row.youArePayer ? row.toLabel : 'You'} src={row.toAvatarUrl} size={36} />
       <p className="text-base font-bold text-foreground tabular-nums flex-shrink-0 min-w-[72px] text-right">
-        {fmtRM(row.amountCents)}
+        {fmt(row.amountCents)}
       </p>
       <span
         className={cn(

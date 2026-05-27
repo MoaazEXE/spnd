@@ -37,8 +37,8 @@ export default async function SettlePage({ params }: PageProps) {
     .map(e => ({
       id: e.id,
       title: e.description,
-      payerName: e.payerId === ctx.id ? 'You' : e.payer.name,
-      shareCount: e.shares.length,
+      payerName: e.payerId === ctx.id ? 'You' : (e.payer?.name ?? 'Member'),
+      shareCount: e.shares.length + (e.guestShares?.length ?? 0),
       amountCents: e.amountCents,
     }))
 

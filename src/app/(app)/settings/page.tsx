@@ -36,6 +36,7 @@ export default async function SettingsPage() {
             timeCostMode: dbUser?.timeCostMode ?? 'SIMPLE',
             commuteHours: dbUser?.commuteHours ?? null,
             workCostsCents: dbUser?.workCostsCents ?? null,
+            currency: dbUser?.currency ?? 'MYR',
           }}
         />
       </div>

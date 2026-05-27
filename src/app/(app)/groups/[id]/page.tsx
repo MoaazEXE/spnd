@@ -16,6 +16,13 @@ export interface GroupMemberView {
   balanceCents: number
 }
 
+export interface GroupGuestView {
+  id: string
+  name: string
+  addedBy: string
+  createdAt: string
+}
+
 export interface GroupActivityView {
   id: string
   type: 'split' | 'settlement'
@@ -29,12 +36,27 @@ export interface GroupActivityView {
   createdAt: string
 }
 
+export interface GroupProposalView {
+  id: string
+  description: string
+  amountCents: number
+  proposerId: string
+  proposerName: string
+  coolingUntil: string
+  isCommitted: boolean
+  reactions: { userId: string; userName: string; reaction: 'IN' | 'SKIP' | null }[]
+  myReaction: 'IN' | 'SKIP' | null
+}
+
 export default async function GroupPage({ params }: PageProps) {
   const { id } = await params
   const ctx = await getUserContext()
   if (!ctx) redirect('/login')
 
-  const group = await groupsRepo.findByIdDeep(id, ctx.id)
+  const [group, rawProposals] = await Promise.all([
+    groupsRepo.findByIdDeep(id, ctx.id),
+    groupsRepo.findProposalsByGroup(id, ctx.id),
+  ])
   if (!group) notFound()
 
   const expenses = group.expenses
@@ -71,12 +93,37 @@ export default async function GroupPage({ params }: PageProps) {
     }
   })
 
+  const guests: GroupGuestView[] = group.guestMembers.map(g => ({
+    id: g.id,
+    name: g.name,
+    addedBy: g.addedBy,
+    createdAt: new Date(g.createdAt).toISOString(),
+  }))
+
+  const proposals: GroupProposalView[] = rawProposals.map(p => ({
+    id: p.id,
+    description: p.description,
+    amountCents: p.amountCents,
+    proposerId: p.payerId,
+    proposerName: p.payerId === ctx.id ? 'You' : (p.payer?.name ?? 'Member'),
+    coolingUntil: new Date(p.coolingUntil!).toISOString(),
+    isCommitted: p.status === 'COMMITTED',
+    reactions: p.shares.map(s => ({
+      userId: s.userId,
+      userName: s.userId === ctx.id ? 'You' : s.user.name,
+      reaction: (s.reaction as 'IN' | 'SKIP' | null) ?? null,
+    })),
+    myReaction: (p.shares.find(s => s.userId === ctx.id)?.reaction as 'IN' | 'SKIP' | null) ?? null,
+  }))
+
   return (
     <GroupDetailShell
       groupId={group.id}
       groupName={group.name}
       members={members}
+      guests={guests}
       activity={activity}
+      proposals={proposals}
       currentUserId={ctx.id}
       isCreator={group.createdBy === ctx.id}
       savedTogetherCents={savedTogetherCents}

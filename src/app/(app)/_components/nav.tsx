@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Home, Clock, Users, Wallet, LogOut } from 'lucide-react'
 import { signOut } from '@/app/actions/auth'
-import { fmtRM } from '@/lib/formatters'
+import { useFmt } from '@/lib/currency-context'
 import { BrandMark } from '@/components/ui/brand-mark'
 import { cn } from '@/lib/utils'
 
@@ -27,6 +27,7 @@ interface Props {
 
 export function Nav({ name, email, initial, avatarUrl, savedCents, coolingCount, groupsCount }: Props) {
   const pathname = usePathname()
+  const fmt = useFmt()
 
   const isActive = (href: string) =>
     pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
@@ -50,7 +51,7 @@ export function Nav({ name, email, initial, avatarUrl, savedCents, coolingCount,
             Saved by waiting
           </p>
           <p className="mt-1 font-display text-2xl font-semibold text-primary tracking-tight tabular-nums">
-            {fmtRM(savedCents)}
+            {fmt(savedCents)}
           </p>
         </div>
 

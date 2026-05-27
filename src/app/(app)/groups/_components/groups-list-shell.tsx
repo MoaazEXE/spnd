@@ -3,7 +3,7 @@
 import { useState, useTransition, useMemo } from 'react'
 import Link from 'next/link'
 import { Plus, Users } from 'lucide-react'
-import { fmtRM } from '@/lib/formatters'
+import { useFmt } from '@/lib/currency-context'
 import { Avatar } from '@/components/ui/avatar'
 import { Card } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -13,13 +13,14 @@ import { computeBalances, settlementPlan } from '@/core/debt/groupBalances'
 import { CreateGroupSheet } from './create-group-sheet'
 import { GroupDetailPanel, GroupDetailPanelEmpty } from './group-detail-panel'
 import type { GroupSummary, InvitePreview, RawGroupForShell } from '../page'
-import type { GroupMemberView, GroupActivityView } from '../[id]/page'
+import type { GroupMemberView, GroupActivityView, GroupGuestView } from '../[id]/page'
 import type { PlanRow } from '../[id]/settle/_components/settle-shell'
 
 interface SelectedGroupDetail {
   groupId: string
   groupName: string
   members: GroupMemberView[]
+  guests: GroupGuestView[]
   activity: GroupActivityView[]
   savedTogetherCents: number
   youBalanceCents: number
@@ -43,6 +44,7 @@ export function GroupsListShell({
   currentUserId,
   allGroupsRaw,
 }: Props) {
+  const fmt = useFmt()
   const [creating, setCreating] = useState(false)
   const [pending, startTransition] = useTransition()
   const [actingOn, setActingOn] = useState<string | null>(null)
@@ -105,10 +107,18 @@ export function GroupsListShell({
       youArePayer: p.from === currentUserId,
     }))
 
+    const guests: GroupGuestView[] = g.guestMembers.map(gm => ({
+      id: gm.id,
+      name: gm.name,
+      addedBy: gm.addedBy,
+      createdAt: gm.createdAt,
+    }))
+
     return {
       groupId: g.id,
       groupName: g.name,
       members,
+      guests,
       activity,
       savedTogetherCents,
       youBalanceCents: balances.get(currentUserId) ?? 0,
@@ -230,6 +240,7 @@ export function GroupsListShell({
                 groupId={selectedDetail.groupId}
                 groupName={selectedDetail.groupName}
                 members={selectedDetail.members}
+                guests={selectedDetail.guests}
                 activity={selectedDetail.activity}
                 currentUserId={currentUserId}
                 isCreator={selectedDetail.isCreator}
@@ -314,7 +325,7 @@ export function GroupsListShell({
         <div className="rounded-2xl p-5 mb-5 text-white shadow-card bg-gradient-to-br from-primary to-primary-deep">
           <p className="text-xs font-semibold uppercase tracking-wide opacity-70">Saved together</p>
           <p className="mt-1 font-display text-4xl font-semibold tabular-nums tracking-tight">
-            {fmtRM(totalSavedCents)}
+            {fmt(totalSavedCents)}
           </p>
           <p className="mt-1 text-xs opacity-70">
             Across {groups.length} {groups.length === 1 ? 'group' : 'groups'}, all time
@@ -377,7 +388,8 @@ function DesktopGroupRow({
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-foreground truncate">{group.name}</p>
         <p className="text-xs text-muted-foreground mt-0.5">
-          {group.memberCount} {group.memberCount === 1 ? 'member' : 'members'}
+          {group.memberCount + group.guestCount}{' '}
+          {group.memberCount + group.guestCount === 1 ? 'member' : 'members'}
         </p>
       </div>
       <DesktopBalanceBadge cents={group.youOweCents} />
@@ -386,6 +398,7 @@ function DesktopGroupRow({
 }
 
 function DesktopBalanceBadge({ cents }: { cents: number }) {
+  const fmt = useFmt()
   if (cents === 0) {
     return <span className="text-xs font-medium text-muted-foreground">Settled</span>
   }
@@ -397,7 +410,7 @@ function DesktopBalanceBadge({ cents }: { cents: number }) {
       )}
     >
       {cents > 0 ? '+' : '−'}
-      {fmtRM(Math.abs(cents), 0)}
+      {fmt(Math.abs(cents), 0)}
     </span>
   )
 }
@@ -426,7 +439,8 @@ function MobileGroupRow({ group }: { group: GroupSummary }) {
               ))}
             </div>
             <span className="text-xs text-muted-foreground">
-              {group.memberCount} {group.memberCount === 1 ? 'member' : 'members'}
+              {group.memberCount + group.guestCount}{' '}
+              {group.memberCount + group.guestCount === 1 ? 'member' : 'members'}
             </span>
           </div>
         </div>
@@ -437,6 +451,7 @@ function MobileGroupRow({ group }: { group: GroupSummary }) {
 }
 
 function MobileBalanceBadge({ cents }: { cents: number }) {
+  const fmt = useFmt()
   if (cents === 0) {
     return <span className="text-xs font-medium text-muted-foreground">Settled</span>
   }
@@ -444,7 +459,7 @@ function MobileBalanceBadge({ cents }: { cents: number }) {
     return (
       <div className="text-right">
         <p className="text-[11px] font-medium text-muted-foreground">You&apos;re owed</p>
-        <p className="text-body-lg font-bold text-primary tabular-nums">{fmtRM(cents, 0)}</p>
+        <p className="text-body-lg font-bold text-primary tabular-nums">{fmt(cents, 0)}</p>
       </div>
     )
   }
@@ -452,7 +467,7 @@ function MobileBalanceBadge({ cents }: { cents: number }) {
     <div className="text-right">
       <p className="text-[11px] font-medium text-muted-foreground">You owe</p>
       <p className="text-body-lg font-bold text-coral-deep tabular-nums">
-        {fmtRM(Math.abs(cents), 0)}
+        {fmt(Math.abs(cents), 0)}
       </p>
     </div>
   )

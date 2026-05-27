@@ -12,6 +12,9 @@ import {
   withValidation,
 } from '@/lib/form-data'
 import type { TimeCostMode } from '@/types'
+import { CURRENCIES, type CurrencyCode } from '@/lib/formatters'
+
+const VALID_CURRENCIES: Set<string> = new Set(CURRENCIES.map(c => c.code))
 
 export async function updateProfile(
   _prevState: string | null,
@@ -107,13 +110,19 @@ export async function saveIncomeSettings(
       throw new ValidationError('Working hours must be a positive number.')
     }
 
-    await usersRepo.updateIncome(user.id, {
-      monthlyIncomeCents,
-      workingHoursPerWeek,
-      timeCostMode,
-      commuteHours: getOptionalNumber(formData, 'commuteHours'),
-      workCostsCents: getCents(formData, 'workCosts'),
-    })
+    const currency = getString(formData, 'currency') ?? 'MYR'
+    if (!VALID_CURRENCIES.has(currency)) throw new ValidationError('Invalid currency.')
+
+    await Promise.all([
+      usersRepo.updateIncome(user.id, {
+        monthlyIncomeCents,
+        workingHoursPerWeek,
+        timeCostMode,
+        commuteHours: getOptionalNumber(formData, 'commuteHours'),
+        workCostsCents: getCents(formData, 'workCosts'),
+      }),
+      usersRepo.updateCurrency(user.id, currency as CurrencyCode),
+    ])
 
     updateTag(`user-${user.id}`)
   })

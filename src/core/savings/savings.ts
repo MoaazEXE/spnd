@@ -38,17 +38,52 @@ export interface SkippedSummary {
   rawByDay: DailySavingsPoint[]
 }
 
+/** Convert a Date to a local YYYY-MM-DD string using Intl (handles all timezones). */
+function localDateKey(d: Date, timezone: string): string {
+  const parts = new Intl.DateTimeFormat('en', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(d)
+  const y = parts.find(p => p.type === 'year')!.value
+  const mo = parts.find(p => p.type === 'month')!.value
+  const dy = parts.find(p => p.type === 'day')!.value
+  return `${y}-${mo}-${dy}`
+}
+
+/** Get today's local date string, then build a date range going back `days` days. */
+function buildDateRange(days: number, timezone: string): string[] {
+  const now = new Date()
+  const keys: string[] = []
+  for (let i = days - 1; i >= 0; i--) {
+    // subtract exactly 24h per day — close enough for savings bucketing (DST edge is rare)
+    const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000)
+    keys.push(localDateKey(d, timezone))
+  }
+  return keys
+}
+
+/** Local year-month string for "this month" comparison. */
+function localYearMonth(d: Date, timezone: string): string {
+  const parts = new Intl.DateTimeFormat('en', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+  }).formatToParts(d)
+  const y = parts.find(p => p.type === 'year')!.value
+  const mo = parts.find(p => p.type === 'month')!.value
+  return `${y}-${mo}`
+}
+
 /**
  * Single-pass aggregation over the skipped list. Walks the items ONCE to
  * build the per-day bucket map, then derives every chart series from that
  * map. Replaces five separate passes on the dashboard.
  */
-export function summarizeSkipped(items: SkippedItem[], days = 30): SkippedSummary {
+export function summarizeSkipped(items: SkippedItem[], days = 30, timezone = 'UTC'): SkippedSummary {
   const now = new Date()
-  const y = now.getFullYear()
-  const m = now.getMonth()
-  const today = new Date(now)
-  today.setHours(0, 0, 0, 0)
+  const thisMonth = localYearMonth(now, timezone)
 
   let totalCents = 0
   let thisMonthCents = 0
@@ -58,21 +93,18 @@ export function summarizeSkipped(items: SkippedItem[], days = 30): SkippedSummar
     totalCents += item.amountCents
     if (!item.resolvedAt) continue
     const d = new Date(item.resolvedAt)
-    if (d.getFullYear() === y && d.getMonth() === m) {
+    if (localYearMonth(d, timezone) === thisMonth) {
       thisMonthCents += item.amountCents
     }
-    d.setHours(0, 0, 0, 0)
-    const key = d.toISOString().slice(0, 10)
+    const key = localDateKey(d, timezone)
     byDay.set(key, (byDay.get(key) ?? 0) + item.amountCents)
   }
 
+  const dateRange = buildDateRange(days, timezone)
   const cumulativeByDay: SavingsDataPoint[] = []
   const rawByDay: DailySavingsPoint[] = []
   let cumulative = 0
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(today)
-    d.setDate(today.getDate() - i)
-    const key = d.toISOString().slice(0, 10)
+  for (const key of dateRange) {
     const cents = byDay.get(key) ?? 0
     cumulative += cents
     cumulativeByDay.push({ date: key, cumulativeCents: cumulative })

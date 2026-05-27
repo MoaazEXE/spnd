@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useCallback } from 'react'
+import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
-export default function AppError({
+export default function GroupsError({
   error,
   reset,
 }: {
@@ -13,14 +13,8 @@ export default function AppError({
   const router = useRouter()
 
   useEffect(() => {
-    console.error('[App error]', error)
+    console.error('[Groups error]', error)
   }, [error])
-
-  const handleRetry = useCallback(() => {
-    router.refresh()
-    // Small delay lets Next.js finish the refresh before the error boundary resets
-    setTimeout(() => reset(), 200)
-  }, [router, reset])
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] px-5 text-center">
@@ -31,15 +25,15 @@ export default function AppError({
           <circle cx="12" cy="16" r="1" fill="var(--destructive)" />
         </svg>
       </div>
-      <h2 className="mb-1 text-lg font-semibold text-foreground">Something went wrong</h2>
-      <p className="mb-4 max-w-xs text-sm text-muted-foreground leading-relaxed">
-        {error.message || 'Could not load this page. This may be a temporary issue.'}
+      <h2 className="mb-1 text-lg font-semibold text-foreground">Could not load groups</h2>
+      <p className="mb-5 max-w-xs text-sm text-muted-foreground leading-relaxed">
+        There was a problem loading your groups. This is usually temporary — try refreshing.
       </p>
       <button
-        onClick={handleRetry}
-        className="h-11 px-6 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary-deep transition-colors active:scale-[0.97]"
+        onClick={() => { router.refresh(); setTimeout(reset, 100) }}
+        className="h-11 px-6 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary-deep transition-colors"
       >
-        Try again
+        Refresh
       </button>
     </div>
   )

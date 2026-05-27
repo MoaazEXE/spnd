@@ -1,25 +1,31 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ShoppingBag, Clock, UserPlus, Scale, ArrowRight, Check, Users, ChevronDown, ChevronUp } from 'lucide-react'
-import { fmtRM } from '@/lib/formatters'
+import { ShoppingBag, Clock, UserPlus, Scale, ArrowRight, Check, Users, ChevronDown, ChevronUp, UserMinus } from 'lucide-react'
+import { toast } from 'sonner'
+import { useFmt } from '@/lib/currency-context'
 import { Avatar } from '@/components/ui/avatar'
 import { Card } from '@/components/ui/card'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { cn } from '@/lib/utils'
 import { useGroupRealtime } from '@/lib/use-group-realtime'
+import { kickMember, removeGuestMember } from '@/app/actions/groups'
 import { AddExpenseSheet } from '../[id]/_components/add-expense-sheet'
 import { AddMemberSheet } from '../[id]/_components/add-member-sheet'
+import { AddProposalSheet } from '../[id]/_components/add-proposal-sheet'
 import { EditExpenseSheet } from '../[id]/_components/edit-expense-sheet'
 import { DangerZone } from '../[id]/_components/danger-zone'
 import { TransferOwnershipSheet } from '../[id]/_components/transfer-ownership-sheet'
-import type { GroupMemberView, GroupActivityView } from '../[id]/page'
+import type { GroupMemberView, GroupActivityView, GroupGuestView } from '../[id]/page'
 import type { PlanRow } from '../[id]/settle/_components/settle-shell'
 
 interface Props {
   groupId: string
   groupName: string
   members: GroupMemberView[]
+  guests: GroupGuestView[]
   activity: GroupActivityView[]
   currentUserId: string
   isCreator: boolean
@@ -33,6 +39,7 @@ export function GroupDetailPanel({
   groupId,
   groupName,
   members,
+  guests,
   activity,
   currentUserId,
   isCreator,
@@ -41,12 +48,41 @@ export function GroupDetailPanel({
   settlePlan,
   openProposalsCount,
 }: Props) {
+  const fmt = useFmt()
+  const router = useRouter()
   const [adding, setAdding] = useState(false)
+  const [proposing, setProposing] = useState(false)
   const [inviting, setInviting] = useState(false)
   const [transferring, setTransferring] = useState(false)
   const [editing, setEditing] = useState<GroupActivityView | null>(null)
   const [showMembers, setShowMembers] = useState(false)
+  const [removing, setRemoving] = useState<{ type: 'member' | 'guest'; id: string; name: string } | null>(null)
+  const [removePending, startRemove] = useTransition()
   useGroupRealtime(groupId)
+
+  function doRemove() {
+    if (!removing) return
+    startRemove(async () => {
+      try {
+        const fd = new FormData()
+        if (removing.type === 'member') {
+          fd.set('groupId', groupId)
+          fd.set('memberId', removing.id)
+          await kickMember(fd)
+        } else {
+          fd.set('guestId', removing.id)
+          await removeGuestMember(fd)
+        }
+        toast.success(`${removing.name} removed from group`)
+        router.refresh()
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Could not remove.'
+        if (!msg.includes('NEXT_REDIRECT')) toast.error(msg)
+      } finally {
+        setRemoving(null)
+      }
+    })
+  }
 
   const hasSplitActivity = activity.some(a => a.type === 'split')
   const memberCount = members.length
@@ -94,9 +130,8 @@ export function GroupDetailPanel({
             </button>
             <button
               type="button"
-              disabled
-              title="Coming next sprint"
-              className="h-9 px-3 rounded-lg border border-border bg-background text-xs font-semibold text-muted-foreground inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => setProposing(true)}
+              className="h-9 px-3 rounded-lg border border-border bg-background text-xs font-semibold text-foreground hover:bg-muted transition-colors inline-flex items-center gap-1.5"
             >
               <Clock size={13} strokeWidth={1.8} />
               Cool on it
@@ -104,7 +139,7 @@ export function GroupDetailPanel({
             <button
               type="button"
               onClick={() => setInviting(true)}
-              title="Invite member"
+              title="Add member"
               className="w-9 h-9 rounded-lg border border-border bg-background inline-flex items-center justify-center hover:bg-muted transition-colors"
             >
               <UserPlus size={14} strokeWidth={1.8} className="text-foreground" />
@@ -121,7 +156,7 @@ export function GroupDetailPanel({
               Saved Together
             </p>
             <p className="font-display text-2xl font-semibold text-foreground tabular-nums tracking-tight">
-              {fmtRM(savedTogetherCents, 0)}
+              {fmt(savedTogetherCents, 0)}
             </p>
           </div>
           <div className="px-4 py-3">
@@ -129,7 +164,7 @@ export function GroupDetailPanel({
               Your Balance
             </p>
             <p className={cn('font-display text-2xl font-semibold tabular-nums tracking-tight', balanceColor)}>
-              {youBalanceCents > 0 ? '+' : ''}{fmtRM(youBalanceCents, 0)}
+              {youBalanceCents > 0 ? '+' : ''}{fmt(youBalanceCents, 0)}
             </p>
           </div>
           <div className="px-4 py-3">
@@ -192,11 +227,11 @@ export function GroupDetailPanel({
                     </div>
                     <div className="text-right flex-shrink-0">
                       <p className="text-sm font-bold text-foreground tabular-nums">
-                        {fmtRM(a.amountCents, 0)}
+                        {fmt(a.amountCents, 0)}
                       </p>
                       {!isSettlement && perPerson > 0 && (
                         <p className="text-[11px] text-muted-foreground tabular-nums mt-0.5">
-                          {fmtRM(perPerson, 0)} each
+                          {fmt(perPerson, 0)} each
                         </p>
                       )}
                     </div>
@@ -225,14 +260,18 @@ export function GroupDetailPanel({
             <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">
               Cooling Proposals
             </p>
-            <Card padding="none" className="text-center py-8">
+            <Card padding="none" className="text-center py-6">
               <div className="mx-auto w-10 h-10 rounded-full bg-primary-tint flex items-center justify-center text-primary mb-2.5">
                 <Clock size={17} strokeWidth={1.8} />
               </div>
-              <p className="text-xs font-semibold text-foreground">No proposals yet.</p>
-              <p className="mt-1 text-[11px] text-muted-foreground max-w-[190px] mx-auto leading-relaxed">
-                Cool-offs let everyone weigh in before committing. Coming soon.
-              </p>
+              <Link
+                href={`/groups/${groupId}`}
+                className="text-xs font-semibold text-primary hover:underline"
+              >
+                {openProposalsCount > 0
+                  ? `View ${openProposalsCount} proposal${openProposalsCount > 1 ? 's' : ''} →`
+                  : 'View proposals →'}
+              </Link>
             </Card>
           </div>
 
@@ -270,7 +309,7 @@ export function GroupDetailPanel({
                       </p>
                       <Avatar name={row.toLabel} src={row.toAvatarUrl} size={28} />
                       <p className="text-sm font-bold text-foreground tabular-nums flex-shrink-0 min-w-[52px] text-right">
-                        {fmtRM(row.amountCents, 0)}
+                        {fmt(row.amountCents, 0)}
                       </p>
                     </div>
                   ))}
@@ -294,7 +333,7 @@ export function GroupDetailPanel({
               className="w-full flex items-center justify-between mb-3 group"
             >
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground group-hover:text-foreground transition-colors">
-                Members · {members.length}
+                Members · {members.length + guests.length}
               </p>
               {showMembers ? (
                 <ChevronUp size={13} strokeWidth={2} className="text-muted-foreground" />
@@ -311,7 +350,7 @@ export function GroupDetailPanel({
                       key={m.id}
                       className={cn(
                         'flex items-center gap-3 px-4 py-3',
-                        i < members.length - 1 && 'border-b border-sep',
+                        (i < members.length - 1 || guests.length > 0) && 'border-b border-sep',
                       )}
                     >
                       <Avatar name={m.name} src={m.avatarUrl} size={28} />
@@ -330,8 +369,45 @@ export function GroupDetailPanel({
                       >
                         {m.balanceCents === 0
                           ? '—'
-                          : (m.balanceCents > 0 ? '+' : '−') + fmtRM(Math.abs(m.balanceCents), 0)}
+                          : (m.balanceCents > 0 ? '+' : '−') + fmt(Math.abs(m.balanceCents), 0)}
                       </p>
+                      {isCreator && m.id !== currentUserId && (
+                        <button
+                          type="button"
+                          onClick={() => setRemoving({ type: 'member', id: m.id, name: m.name })}
+                          disabled={removePending}
+                          className="ml-0.5 w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-coral-deep hover:bg-coral-tint transition-colors flex-shrink-0"
+                          aria-label={`Remove ${m.name}`}
+                        >
+                          <UserMinus size={13} strokeWidth={1.8} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  {guests.map((g, i) => (
+                    <div
+                      key={g.id}
+                      className={cn(
+                        'flex items-center gap-3 px-4 py-3',
+                        i < guests.length - 1 && 'border-b border-sep',
+                      )}
+                    >
+                      <Avatar name={g.name} size={28} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-foreground truncate">{g.name}</p>
+                        <p className="text-[10px] text-muted-foreground">Guest</p>
+                      </div>
+                      {isCreator && (
+                        <button
+                          type="button"
+                          onClick={() => setRemoving({ type: 'guest', id: g.id, name: g.name })}
+                          disabled={removePending}
+                          className="ml-0.5 w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-coral-deep hover:bg-coral-tint transition-colors flex-shrink-0"
+                          aria-label={`Remove ${g.name}`}
+                        >
+                          <UserMinus size={13} strokeWidth={1.8} />
+                        </button>
+                      )}
                     </div>
                   ))}
                 </Card>
@@ -340,7 +416,7 @@ export function GroupDetailPanel({
                   onClick={() => setInviting(true)}
                   className="mt-2 w-full rounded-xl border-[1.5px] border-dashed border-sep-strong px-4 py-2.5 text-xs font-semibold text-primary hover:bg-card transition-colors"
                 >
-                  + Invite by email
+                  + Add member
                 </button>
                 <DangerZone
                   groupId={groupId}
@@ -366,19 +442,23 @@ export function GroupDetailPanel({
             avatarUrl: m.avatarUrl,
             isYou: m.id === currentUserId,
           }))}
+          guests={guests}
           onClose={() => setAdding(false)}
         />
       )}
       {inviting && <AddMemberSheet groupId={groupId} onClose={() => setInviting(false)} />}
+      {proposing && <AddProposalSheet groupId={groupId} onClose={() => setProposing(false)} />}
       {editing && (
         <EditExpenseSheet
           expenseId={editing.id}
           initialDescription={editing.description}
           initialAmountCents={editing.amountCents}
           shareCount={editing.shareCount}
-          memberCount={members.length}
+          memberCount={members.length + guests.length}
           payerName={editing.payerName}
           isSettlement={editing.type === 'settlement'}
+          members={members.map(m => ({ id: m.id, name: m.id === currentUserId ? 'You' : m.name, avatarUrl: m.avatarUrl }))}
+          guests={guests}
           onClose={() => setEditing(null)}
         />
       )}
@@ -391,6 +471,16 @@ export function GroupDetailPanel({
           onClose={() => setTransferring(false)}
         />
       )}
+      <ConfirmDialog
+        open={removing !== null}
+        title={`Remove ${removing?.name ?? ''}?`}
+        description="Their past expense shares stay on record. Balances adjust automatically."
+        confirmLabel="Remove"
+        destructive
+        busy={removePending}
+        onCancel={() => setRemoving(null)}
+        onConfirm={doRemove}
+      />
     </div>
   )
 }

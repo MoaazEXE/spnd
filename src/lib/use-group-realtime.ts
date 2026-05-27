@@ -38,6 +38,7 @@ export function useGroupRealtime(groupId: string) {
       .channel(`group-${groupId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'Expense', filter: `groupId=eq.${groupId}` }, () => refreshRef.current())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'GroupMember', filter: `groupId=eq.${groupId}` }, () => refreshRef.current())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'GuestMember', filter: `groupId=eq.${groupId}` }, () => refreshRef.current())
       // ExpenseShare has no groupId column — Supabase realtime can't filter it by group.
       // Expense changes (which always accompany share mutations) already trigger a refresh above.
       .subscribe()

@@ -157,6 +157,33 @@ export async function transferOwnership(formData: FormData): Promise<void> {
   await revalidateGroupMembers(groupId)
 }
 
+export async function kickMember(formData: FormData): Promise<void> {
+  const groupId = getRequiredString(formData, 'groupId')
+  const memberId = getRequiredString(formData, 'memberId')
+  const userId = await getAuthUserId()
+
+  const group = await prisma.group.findUnique({
+    where: { id: groupId },
+    select: { createdBy: true },
+  })
+  if (!group) throw new ValidationError('Group not found.')
+  if (group.createdBy !== userId) throw new ValidationError('Only the owner can remove members.')
+  if (memberId === userId) throw new ValidationError('You cannot remove yourself.')
+  if (memberId === group.createdBy) throw new ValidationError('Cannot remove the group owner.')
+
+  const member = await prisma.groupMember.findUnique({
+    where: { groupId_userId: { groupId, userId: memberId } },
+  })
+  if (!member || member.status !== 'ACTIVE') throw new ValidationError('Member not found.')
+
+  await prisma.groupMember.delete({
+    where: { groupId_userId: { groupId, userId: memberId } },
+  })
+
+  updateTag(`groups-user-${memberId}`)
+  await revalidateGroupMembers(groupId, memberId)
+}
+
 export async function leaveGroup(formData: FormData): Promise<void> {
   const groupId = getRequiredString(formData, 'groupId')
   const userId = await getAuthUserId()
@@ -239,6 +266,43 @@ function parseParticipants(formData: FormData): string[] {
     .filter((v, i, arr) => arr.indexOf(v) === i)
 }
 
+function parseGuestParticipants(formData: FormData): string[] {
+  const all = formData.getAll('guestParticipants')
+  return all
+    .filter((v): v is string => typeof v === 'string' && v.length > 0)
+    .filter((v, i, arr) => arr.indexOf(v) === i)
+}
+
+export async function addGuestMember(
+  _prevState: string | null,
+  formData: FormData,
+): Promise<string | null> {
+  let userId: string | null = null
+  const result = await withValidation(async () => {
+    const groupId = getRequiredString(formData, 'groupId')
+    const name = getRequiredString(formData, 'guestName')
+    if (name.length > 60) throw new ValidationError('Name is too long.')
+    userId = await getAuthUserId()
+    await requireActiveMembership(groupId, userId)
+    await groupsRepo.addGuestMember(groupId, name, userId)
+    await revalidateGroupMembers(groupId)
+  }, 'action:addGuestMember')
+  return typeof result === 'string' ? result : null
+}
+
+export async function removeGuestMember(formData: FormData): Promise<void> {
+  const guestId = getRequiredString(formData, 'guestId')
+  const userId = await getAuthUserId()
+  try {
+    await groupsRepo.removeGuestMember(guestId, userId)
+    // Revalidate via the guest's group
+    const guest = await prisma.guestMember.findUnique({ where: { id: guestId } }).catch(() => null)
+    if (guest) await revalidateGroupMembers(guest.groupId)
+  } catch (e) {
+    if (e instanceof ValidationError) throw e
+  }
+}
+
 export async function addExpense(
   _prevState: string | null,
   formData: FormData,
@@ -251,38 +315,67 @@ export async function addExpense(
     const userId = await getAuthUserId()
     await requireActiveMembership(groupId, userId)
 
+    const rawPayerId = formData.get('payerId') as string | null
+    const rawGuestPayerId = formData.get('guestPayerId') as string | null
+
     const group = await prisma.group.findUnique({
       where: { id: groupId },
       include: {
-        members: {
-          where: { status: 'ACTIVE' },
-          select: { userId: true },
-        },
+        members: { where: { status: 'ACTIVE' }, select: { userId: true } },
+        guestMembers: { select: { id: true, addedBy: true } },
       },
     })
     if (!group) throw new ValidationError('Group not found.')
 
     const activeIds = new Set(group.members.map(m => m.userId))
+    const guestIds = new Set(group.guestMembers.map(g => g.id))
+
+    let payerId: string
+    if (rawGuestPayerId && rawGuestPayerId.trim()) {
+      if (!guestIds.has(rawGuestPayerId)) throw new ValidationError('Selected guest payer is not in this group.')
+      const guest = group.guestMembers.find(g => g.id === rawGuestPayerId)
+      if (!guest) throw new ValidationError('Guest not found.')
+      payerId = guest.addedBy
+    } else {
+      payerId = rawPayerId && rawPayerId.trim() ? rawPayerId : userId
+      if (!activeIds.has(payerId)) throw new ValidationError('Selected payer is not an active group member.')
+    }
+
     const requested = parseParticipants(formData)
     const participants = requested.length > 0 ? requested : Array.from(activeIds)
+    const requestedGuests = parseGuestParticipants(formData)
 
     for (const id of participants) {
-      if (!activeIds.has(id)) {
-        throw new ValidationError('One of the selected people is not a group member.')
-      }
+      if (!activeIds.has(id)) throw new ValidationError('One of the selected people is not a group member.')
     }
-    if (participants.length === 0) {
+    for (const id of requestedGuests) {
+      if (!guestIds.has(id)) throw new ValidationError('One of the selected guests is not in this group.')
+    }
+    if (participants.length === 0 && requestedGuests.length === 0) {
       throw new ValidationError('Pick at least one person to split this with.')
     }
 
-    const shares = equalSplit(amountCents, participants, userId)
+    // Equal split across members + guests; remainder to payer
+    const totalPeople = participants.length + requestedGuests.length
+    const base = Math.floor(amountCents / totalPeople)
+    const remainder = amountCents - base * totalPeople
+    const shares = participants.map(uid => ({
+      userId: uid,
+      shareCents: uid === payerId ? base + remainder : base,
+    }))
+    const guestShares = requestedGuests.map(gid => ({ guestId: gid, shareCents: base }))
 
-    await expensesRepo.createInstant({
-      groupId,
-      payerId: userId,
-      amountCents,
-      description,
-      shares,
+    await prisma.expense.create({
+      data: {
+        groupId,
+        payerId: payerId,
+        amountCents,
+        description,
+        type: 'INSTANT',
+        status: 'COMMITTED',
+        shares: { create: shares },
+        guestShares: { create: guestShares },
+      },
     })
   })
 
@@ -328,16 +421,47 @@ export async function editExpense(
     groupIdForRevalidate = expense.groupId
 
     if (resplit) {
-      const memberIds = expense.group.members.map(m => m.userId)
-      const shares = equalSplit(amountCents, memberIds, expense.payerId)
+      const customMemberIds = formData.getAll('resplitParticipants')
+        .filter((v): v is string => typeof v === 'string' && v.length > 0)
+      const customGuestIds = formData.getAll('resplitGuestParticipants')
+        .filter((v): v is string => typeof v === 'string' && v.length > 0)
+
+      let memberIds: string[]
+      let guestIds: string[]
+
+      if (customMemberIds.length > 0 || customGuestIds.length > 0) {
+        memberIds = customMemberIds
+        guestIds = customGuestIds
+      } else {
+        memberIds = expense.group.members.map(m => m.userId)
+        const groupGuests = await prisma.guestMember.findMany({
+          where: { groupId: expense.groupId },
+          select: { id: true },
+        })
+        guestIds = groupGuests.map(g => g.id)
+      }
+
+      const totalPeople = memberIds.length + guestIds.length
+      if (totalPeople === 0) throw new ValidationError('Pick at least one person to split with.')
+
+      const base = Math.floor(amountCents / totalPeople)
+      const remainder = amountCents - base * totalPeople
+      const memberShares = memberIds.map(uid => ({
+        userId: uid,
+        shareCents: uid === expense.payerId ? base + remainder : base,
+      }))
+      const guestSharesData = guestIds.map(gid => ({ guestId: gid, shareCents: base }))
+
       await prisma.$transaction([
         prisma.expenseShare.deleteMany({ where: { expenseId } }),
+        prisma.guestExpenseShare.deleteMany({ where: { expenseId } }),
         prisma.expense.update({
           where: { id: expenseId },
           data: {
             description,
             amountCents,
-            shares: { create: shares },
+            shares: { create: memberShares },
+            guestShares: { create: guestSharesData },
           },
         }),
       ])
@@ -401,6 +525,113 @@ export async function resplitExpense(formData: FormData): Promise<void> {
   await revalidateGroupMembers(expense.groupId)
 }
 
+export async function proposeGroupCooling(
+  _prevState: string | null,
+  formData: FormData,
+): Promise<string | null> {
+  let groupId: string | null = null
+  const result = await withValidation(async () => {
+    groupId = getRequiredString(formData, 'groupId')
+    const description = getRequiredString(formData, 'description')
+    const amountCents = getRequiredCents(formData, 'amount')
+    const coolingDays = Math.max(1, Math.min(90, parseInt(formData.get('coolingDays') as string || '3', 10)))
+    const userId = await getAuthUserId()
+    await requireActiveMembership(groupId, userId)
+
+    const group = await prisma.group.findUnique({
+      where: { id: groupId },
+      include: { members: { where: { status: 'ACTIVE' }, select: { userId: true } } },
+    })
+    if (!group) throw new ValidationError('Group not found.')
+
+    const coolingUntil = new Date(Date.now() + coolingDays * 24 * 60 * 60 * 1000)
+    const memberIds = group.members.map(m => m.userId)
+    const shares = equalSplit(amountCents, memberIds, userId)
+
+    await prisma.expense.create({
+      data: {
+        groupId,
+        payerId: userId,
+        amountCents,
+        description,
+        type: 'PROPOSAL',
+        status: 'COOLING',
+        coolingUntil,
+        shares: { create: shares },
+      },
+    })
+  }, 'action:proposeGroupCooling')
+
+  if (typeof result === 'string') return result
+  if (groupId) await revalidateGroupMembers(groupId)
+  return null
+}
+
+export async function reactToProposal(formData: FormData): Promise<void> {
+  const expenseId = getRequiredString(formData, 'expenseId')
+  const rawReaction = formData.get('reaction') as string
+  if (rawReaction !== 'IN' && rawReaction !== 'SKIP') {
+    throw new ValidationError('Invalid reaction.')
+  }
+  const userId = await getAuthUserId()
+
+  const share = await prisma.expenseShare.findFirst({
+    where: { expenseId, userId },
+    include: { expense: { select: { groupId: true, type: true, status: true } } },
+  })
+  if (!share) throw new ValidationError('You are not part of this proposal.')
+  if (share.expense.type !== 'PROPOSAL' || share.expense.status !== 'COOLING') {
+    throw new ValidationError('This proposal is no longer active.')
+  }
+
+  await prisma.expenseShare.update({
+    where: { id: share.id },
+    data: { reaction: rawReaction },
+  })
+
+  await revalidateGroupMembers(share.expense.groupId)
+}
+
+export async function commitProposal(formData: FormData): Promise<void> {
+  const expenseId = getRequiredString(formData, 'expenseId')
+  const userId = await getAuthUserId()
+
+  const expense = await prisma.expense.findUnique({
+    where: { id: expenseId },
+    include: { group: { select: { id: true } } },
+  })
+  if (!expense || expense.type !== 'PROPOSAL') throw new ValidationError('Proposal not found.')
+  if (expense.payerId !== userId) throw new ValidationError('Only the proposer can commit.')
+
+  await prisma.expense.update({
+    where: { id: expenseId },
+    data: { status: 'COMMITTED', coolingUntil: null },
+  })
+
+  await revalidateGroupMembers(expense.group.id)
+}
+
+export async function cancelProposal(formData: FormData): Promise<void> {
+  const expenseId = getRequiredString(formData, 'expenseId')
+  const userId = await getAuthUserId()
+
+  const expense = await prisma.expense.findUnique({
+    where: { id: expenseId },
+    include: {
+      group: { select: { id: true } },
+      shares: { select: { userId: true } },
+    },
+  })
+  if (!expense || expense.type !== 'PROPOSAL') throw new ValidationError('Proposal not found.')
+
+  const isProposer = expense.payerId === userId
+  const isParticipant = expense.shares.some(s => s.userId === userId)
+  if (!isProposer && !isParticipant) throw new ValidationError('Not part of this proposal.')
+
+  await prisma.expense.update({ where: { id: expenseId }, data: { status: 'CANCELLED' } })
+  await revalidateGroupMembers(expense.group.id)
+}
+
 export async function resplitAll(formData: FormData): Promise<void> {
   const groupId = getRequiredString(formData, 'groupId')
   const userId = await getAuthUserId()
@@ -410,6 +641,7 @@ export async function resplitAll(formData: FormData): Promise<void> {
     where: { id: groupId },
     include: {
       members: { where: { status: 'ACTIVE' }, select: { userId: true } },
+      guestMembers: { select: { id: true } },
       expenses: {
         where: { status: 'COMMITTED', NOT: { description: 'Settlement' } },
         select: { id: true, amountCents: true, payerId: true },
@@ -419,15 +651,27 @@ export async function resplitAll(formData: FormData): Promise<void> {
   if (!group) throw new ValidationError('Group not found.')
 
   const memberIds = group.members.map(m => m.userId)
+  const guestIds = group.guestMembers.map(g => g.id)
+  const totalPeople = memberIds.length + guestIds.length
 
   await prisma.$transaction(
     group.expenses.flatMap(e => {
-      const shares = equalSplit(e.amountCents, memberIds, e.payerId)
+      const base = Math.floor(e.amountCents / totalPeople)
+      const remainder = e.amountCents - base * totalPeople
+      const memberShares = memberIds.map(uid => ({
+        userId: uid,
+        shareCents: uid === e.payerId ? base + remainder : base,
+      }))
+      const guestSharesData = guestIds.map(gid => ({ guestId: gid, shareCents: base }))
       return [
         prisma.expenseShare.deleteMany({ where: { expenseId: e.id } }),
+        prisma.guestExpenseShare.deleteMany({ where: { expenseId: e.id } }),
         prisma.expense.update({
           where: { id: e.id },
-          data: { shares: { create: shares } },
+          data: {
+            shares: { create: memberShares },
+            guestShares: { create: guestSharesData },
+          },
         }),
       ]
     }),

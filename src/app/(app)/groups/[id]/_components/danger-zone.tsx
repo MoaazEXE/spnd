@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import { Card } from '@/components/ui/card'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { leaveGroup, deleteGroup } from '@/app/actions/groups'
-import { fmtRM } from '@/lib/formatters'
+import { useFmt } from '@/lib/currency-context'
 import type { GroupMemberView } from '../page'
 
 interface Props {
@@ -28,6 +28,7 @@ export function DangerZone({
   currentUserId,
   onTransferRequest,
 }: Props) {
+  const fmt = useFmt()
   const [pending, startTransition] = useTransition()
   const [mode, setMode] = useState<'leave' | 'delete' | null>(null)
 
@@ -75,7 +76,7 @@ export function DangerZone({
     youBalanceCents !== 0
       ? `Your balance is ${
           youBalanceCents > 0 ? '+' : '−'
-        }${fmtRM(Math.abs(youBalanceCents), 0)}. Past splits stay on file, but settling first is kinder.`
+        }${fmt(Math.abs(youBalanceCents), 0)}. Past splits stay on file, but settling first is kinder.`
       : 'You won’t see this group anymore. Past splits stay on file.'
 
   return (

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { ShoppingBag, Scale } from 'lucide-react'
-import { fmtRM } from '@/lib/formatters'
+import { useFmt } from '@/lib/currency-context'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import type { GroupActivityView } from '../page'
@@ -22,6 +22,7 @@ export function ActivityList({
   groupId,
   showResplitAll,
 }: Props) {
+  const fmt = useFmt()
   if (activity.length === 0) {
     return (
       <Card className="text-center py-8" padding="none">
@@ -66,11 +67,11 @@ export function ActivityList({
                 </div>
                 <div className="text-right flex-shrink-0">
                   <p className="text-sm font-bold text-foreground tabular-nums">
-                    {fmtRM(a.amountCents, 0)}
+                    {fmt(a.amountCents, 0)}
                   </p>
                   {!isSettlement && a.perPersonCents > 0 && (
                     <p className="text-[11px] text-muted-foreground mt-0.5 tabular-nums">
-                      You: {fmtRM(a.perPersonCents, 0)}
+                      You: {fmt(a.perPersonCents, 0)}
                     </p>
                   )}
                 </div>

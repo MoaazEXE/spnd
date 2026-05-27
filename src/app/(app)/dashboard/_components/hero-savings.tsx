@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { SavingsDataPoint } from '@/core/savings/savings'
+import { useFmt, useCurrency } from '@/lib/currency-context'
 import { Card } from '@/components/ui/card'
 
 interface Props {
@@ -11,12 +12,8 @@ interface Props {
   sparkData: SavingsDataPoint[]
 }
 
-const moneyFmt = new Intl.NumberFormat('en-MY', {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-})
-
 function Sparkline({ data, gradientId }: { data: SavingsDataPoint[]; gradientId: string }) {
+  const fmt = useFmt()
   const w = 320
   const h = 88
   const pad = 6
@@ -159,7 +156,7 @@ function Sparkline({ data, gradientId }: { data: SavingsDataPoint[]; gradientId:
             {new Date(hoverData.date).toLocaleDateString('en-MY', { month: 'short', day: 'numeric' })}
           </div>
           <div className="text-xs text-gold-tint tabular-nums">
-            RM {moneyFmt.format(hoverData.cumulativeCents / 100)}
+            {fmt(hoverData.cumulativeCents)}
           </div>
         </div>
       )}
@@ -176,6 +173,7 @@ function EmptySparkline({ label }: { label: string }) {
 }
 
 export function HeroSavings({ savedCents, thisMonthCents, timeCostFormatted, sparkData }: Props) {
+  const fmt = useFmt()
   const displayRef = useRef<HTMLSpanElement>(null)
   const prevRef = useRef(savedCents)
 
@@ -190,17 +188,15 @@ export function HeroSavings({ savedCents, thisMonthCents, timeCostFormatted, spa
       const t = Math.min(1, (now - start) / duration)
       const eased = 1 - Math.pow(1 - t, 3)
       const current = Math.round(from + (to - from) * eased)
-      el.textContent = moneyFmt.format(current / 100)
+      el.textContent = fmt(current)
       if (t < 1) requestAnimationFrame(tick)
       else {
         prevRef.current = to
-        el.textContent = moneyFmt.format(to / 100)
+        el.textContent = fmt(to)
       }
     }
     requestAnimationFrame(tick)
-  }, [savedCents])
-
-  const initialNumber = moneyFmt.format(savedCents / 100)
+  }, [savedCents, fmt])
   const mobileData = sparkData.slice(-7)
   const allZeroMobile = mobileData.every(d => d.cumulativeCents === 0)
   const allZeroDesktop = sparkData.every(d => d.cumulativeCents === 0)
@@ -212,14 +208,11 @@ export function HeroSavings({ savedCents, thisMonthCents, timeCostFormatted, spa
       </p>
 
       <div className="flex items-baseline gap-1.5">
-        <span className="text-2xl lg:text-3xl font-semibold leading-none tracking-tight text-primary tabular-nums">
-          RM
-        </span>
         <span
           ref={displayRef}
           className="font-display text-5xl lg:text-6xl font-bold leading-none tracking-tight text-primary tabular-nums"
         >
-          {initialNumber}
+          {fmt(savedCents)}
         </span>
       </div>
 
@@ -234,7 +227,7 @@ export function HeroSavings({ savedCents, thisMonthCents, timeCostFormatted, spa
         )}
         {thisMonthCents > 0 && (
           <Chip tone="gold">
-            +RM {(thisMonthCents / 100).toLocaleString('en-MY', { maximumFractionDigits: 0 })} this month
+            +{fmt(thisMonthCents, 0)} this month
           </Chip>
         )}
       </div>

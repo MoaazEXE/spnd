@@ -42,6 +42,9 @@ export const expensesRepo = {
       orderBy: { createdAt: 'desc' },
       include: {
         shares: true,
+        guestShares: {
+          include: { guest: { select: { addedBy: true } } },
+        },
         payer: { select: { id: true, name: true } },
       },
     })

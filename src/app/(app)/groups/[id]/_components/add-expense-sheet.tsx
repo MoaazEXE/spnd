@@ -8,8 +8,10 @@ import { Avatar } from '@/components/ui/avatar'
 import { Card } from '@/components/ui/card'
 import { ErrorBanner } from '@/components/ui/error-banner'
 import { SheetFrame } from '@/components/ui/sheet-frame'
-import { fmtRM } from '@/lib/formatters'
+import { useFmt, useCurrency } from '@/lib/currency-context'
+import { CURRENCIES } from '@/lib/formatters'
 import { cn } from '@/lib/utils'
+import type { GroupGuestView } from '../page'
 
 interface MemberOption {
   id: string
@@ -21,33 +23,52 @@ interface MemberOption {
 interface Props {
   groupId: string
   members: MemberOption[]
+  guests: GroupGuestView[]
   onClose: () => void
 }
 
-export function AddExpenseSheet({ groupId, members, onClose }: Props) {
+export function AddExpenseSheet({ groupId, members, guests, onClose }: Props) {
+  const fmt = useFmt()
+  const currencyCode = useCurrency()
+  const currencySymbol = CURRENCIES.find(c => c.code === currencyCode)?.symbol ?? currencyCode
   const [error, action, isPending] = useActionState(addExpense, null)
   const [amountCents, setAmountCents] = useState(0)
   const [description, setDescription] = useState('')
   const [participants, setParticipants] = useState<Set<string>>(
     () => new Set(members.map(m => m.id)),
   )
+  const [guestParticipants, setGuestParticipants] = useState<Set<string>>(new Set())
+  const [payerId, setPayerId] = useState<string>(() => members.find(m => m.isYou)?.id ?? members[0]?.id ?? '')
+  const [payerIsGuest, setPayerIsGuest] = useState(false)
   const wasPending = useRef(false)
+
+  const totalParticipants = participants.size + guestParticipants.size
 
   useEffect(() => {
     if (wasPending.current && !isPending && error === null) {
+      const totalMembers = members.length + guests.length
       toast.success(`${description || 'Expense'} split`, {
         description:
-          participants.size === members.length
-            ? `Across all ${members.length} ${members.length === 1 ? 'person' : 'people'}.`
-            : `Across ${participants.size} of ${members.length} people.`,
+          totalParticipants === totalMembers
+            ? `Across all ${totalMembers} ${totalMembers === 1 ? 'person' : 'people'}.`
+            : `Across ${totalParticipants} of ${totalMembers} people.`,
       })
       onClose()
     }
     wasPending.current = isPending
-  }, [isPending, error, onClose, description, participants.size, members.length])
+  }, [isPending, error, onClose, description, totalParticipants, members.length, guests.length])
 
-  function toggle(id: string) {
+  function toggleMember(id: string) {
     setParticipants(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleGuest(id: string) {
+    setGuestParticipants(prev => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
       else next.add(id)
@@ -57,19 +78,21 @@ export function AddExpenseSheet({ groupId, members, onClose }: Props) {
 
   function selectAll() {
     setParticipants(new Set(members.map(m => m.id)))
+    setGuestParticipants(new Set(guests.map(g => g.id)))
   }
 
   function justMe() {
     const me = members.find(m => m.isYou)
     setParticipants(me ? new Set([me.id]) : new Set())
+    setGuestParticipants(new Set())
   }
 
-  const participantCount = participants.size
   const perPersonCents =
-    participantCount > 0 ? Math.floor(amountCents / participantCount) : 0
+    totalParticipants > 0 ? Math.floor(amountCents / totalParticipants) : 0
   const canSubmit =
-    description.trim().length > 0 && amountCents > 0 && participantCount > 0
-  const allSelected = participantCount === members.length
+    description.trim().length > 0 && amountCents > 0 && totalParticipants > 0
+  const allSelected =
+    participants.size === members.length && guestParticipants.size === guests.length
 
   return (
     <SheetFrame
@@ -89,8 +112,13 @@ export function AddExpenseSheet({ groupId, members, onClose }: Props) {
     >
       <form action={action} id="add-expense-form" className="px-5 pb-4 space-y-5">
         <input type="hidden" name="groupId" value={groupId} />
+        <input type="hidden" name="payerId" value={payerIsGuest ? '' : payerId} />
+        <input type="hidden" name="guestPayerId" value={payerIsGuest ? payerId : ''} />
         {Array.from(participants).map(id => (
           <input key={id} type="hidden" name="participants" value={id} />
+        ))}
+        {Array.from(guestParticipants).map(id => (
+          <input key={id} type="hidden" name="guestParticipants" value={id} />
         ))}
 
         <Card className="text-center" padding="md">
@@ -98,7 +126,7 @@ export function AddExpenseSheet({ groupId, members, onClose }: Props) {
             How much?
           </p>
           <div className="flex items-baseline justify-center gap-1">
-            <span className="text-2xl font-semibold text-muted-foreground tracking-tight">RM</span>
+            <span className="text-2xl font-semibold text-muted-foreground tracking-tight">{currencySymbol}</span>
             <input
               name="amount"
               type="number"
@@ -113,10 +141,10 @@ export function AddExpenseSheet({ groupId, members, onClose }: Props) {
               className="w-44 text-center text-5xl font-bold text-foreground tabular-nums tracking-tight bg-transparent border-none outline-none placeholder:text-muted-foreground/40"
             />
           </div>
-          {amountCents > 0 && participantCount > 0 && (
+          {amountCents > 0 && totalParticipants > 0 && (
             <p className="mt-3 text-xs text-muted-foreground tabular-nums animate-fade-in">
-              {fmtRM(perPersonCents, 0)} each · split across {participantCount}{' '}
-              {participantCount === 1 ? 'person' : 'people'}
+              {fmt(perPersonCents, 0)} each · split across {totalParticipants}{' '}
+              {totalParticipants === 1 ? 'person' : 'people'}
             </p>
           )}
         </Card>
@@ -139,6 +167,56 @@ export function AddExpenseSheet({ groupId, members, onClose }: Props) {
             onChange={e => setDescription(e.target.value)}
             className="w-full h-13 px-4 rounded-lg bg-background border border-border text-base font-medium text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
           />
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Who paid?
+          </label>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {members.map(m => {
+              const selected = !payerIsGuest && payerId === m.id
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => { setPayerId(m.id); setPayerIsGuest(false) }}
+                  className={cn(
+                    'flex-shrink-0 flex flex-col items-center gap-1.5 rounded-lg px-3 py-2.5 border transition-colors',
+                    selected
+                      ? 'border-primary bg-primary-tint'
+                      : 'border-border bg-card hover:bg-muted',
+                  )}
+                >
+                  <Avatar name={m.name} src={m.avatarUrl} size={28} />
+                  <span className="text-[11px] font-semibold text-foreground truncate max-w-[64px]">
+                    {m.isYou ? 'You' : m.name}
+                  </span>
+                </button>
+              )
+            })}
+            {guests.map(g => {
+              const selected = payerIsGuest && payerId === g.id
+              return (
+                <button
+                  key={g.id}
+                  type="button"
+                  onClick={() => { setPayerId(g.id); setPayerIsGuest(true) }}
+                  className={cn(
+                    'flex-shrink-0 flex flex-col items-center gap-1.5 rounded-lg px-3 py-2.5 border transition-colors',
+                    selected
+                      ? 'border-primary bg-primary-tint'
+                      : 'border-border bg-card hover:bg-muted',
+                  )}
+                >
+                  <Avatar name={g.name} size={28} />
+                  <span className="text-[11px] font-semibold text-foreground truncate max-w-[64px]">
+                    {g.name}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -175,7 +253,7 @@ export function AddExpenseSheet({ groupId, members, onClose }: Props) {
                 <button
                   key={m.id}
                   type="button"
-                  onClick={() => toggle(m.id)}
+                  onClick={() => toggleMember(m.id)}
                   className={cn(
                     'flex items-center gap-3 rounded-lg px-3 py-2.5 border transition-colors text-left',
                     checked
@@ -198,8 +276,38 @@ export function AddExpenseSheet({ groupId, members, onClose }: Props) {
                 </button>
               )
             })}
+            {guests.map(g => {
+              const checked = guestParticipants.has(g.id)
+              return (
+                <button
+                  key={g.id}
+                  type="button"
+                  onClick={() => toggleGuest(g.id)}
+                  className={cn(
+                    'flex items-center gap-3 rounded-lg px-3 py-2.5 border transition-colors text-left',
+                    checked
+                      ? 'border-primary bg-primary-tint'
+                      : 'border-border bg-card hover:bg-muted',
+                  )}
+                >
+                  <Avatar name={g.name} size={28} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-foreground truncate">{g.name}</p>
+                    <p className="text-[10px] text-muted-foreground">Guest</p>
+                  </div>
+                  <span
+                    className={cn(
+                      'flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center transition-colors',
+                      checked ? 'bg-primary text-primary-foreground' : 'border border-border',
+                    )}
+                  >
+                    {checked && <Check size={12} strokeWidth={2.5} />}
+                  </span>
+                </button>
+              )
+            })}
           </div>
-          {participantCount === 0 && (
+          {totalParticipants === 0 && (
             <p className="text-xs text-coral-deep">Pick at least one person.</p>
           )}
         </div>

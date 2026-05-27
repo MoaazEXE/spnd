@@ -39,6 +39,10 @@ export const usersRepo = {
     return prisma.user.update({ where: { id }, data })
   },
 
+  async updateCurrency(id: string, currency: string) {
+    return prisma.user.update({ where: { id }, data: { currency } })
+  },
+
   async updateNotificationPrefs(
     id: string,
     prefs: {

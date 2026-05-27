@@ -51,16 +51,18 @@ model User {
   workCostsCents          Int?
   timeCostMode            TimeCostMode @default(SIMPLE)
   defaultCoolingPeriod    String       @default("1d")
+  currency                String       @default("MYR")
   notifyCoolingReady      Boolean      @default(true)
   notifyGroupActivity     Boolean      @default(true)
   notifyMilestoneUnlocked Boolean      @default(true)
   createdAt               DateTime     @default(now())
 
-  items         Item[]
-  groupsCreated Group[]
-  groupMembers  GroupMember[]
-  expensesPaid  Expense[]
-  expenseShares ExpenseShare[]
+  items             Item[]
+  groupsCreated     Group[]
+  groupMembers      GroupMember[]
+  expensesPaid      Expense[]
+  expenseShares     ExpenseShare[]
+  guestMembersAdded GuestMember[]  @relation("GuestMembersAdded")
 }
 
 model Item {
@@ -92,10 +94,11 @@ model Group {
   createdBy String
   createdAt DateTime @default(now())
 
-  creator  User          @relation(fields: [createdBy], references: [id])
-  members  GroupMember[]
-  items    Item[]
-  expenses Expense[]
+  creator      User          @relation(fields: [createdBy], references: [id])
+  members      GroupMember[]
+  items        Item[]
+  expenses     Expense[]
+  guestMembers GuestMember[]
 
   @@index([createdBy])
 }
@@ -126,12 +129,40 @@ model Expense {
   coolingUntil DateTime?
   createdAt    DateTime      @default(now())
 
-  group  Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  payer  User           @relation(fields: [payerId], references: [id])
-  shares ExpenseShare[]
+  group       Group             @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  payer       User              @relation(fields: [payerId], references: [id])
+  shares      ExpenseShare[]
+  guestShares GuestExpenseShare[]
 
   @@index([groupId, status, createdAt])
   @@index([payerId])
+}
+
+model GuestMember {
+  id        String   @id @default(cuid())
+  groupId   String
+  name      String
+  addedBy   String
+  createdAt DateTime @default(now())
+
+  group       Group             @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  addedByUser User              @relation("GuestMembersAdded", fields: [addedBy], references: [id])
+  expenseShares GuestExpenseShare[]
+
+  @@index([groupId])
+}
+
+model GuestExpenseShare {
+  id         String @id @default(cuid())
+  expenseId  String
+  guestId    String
+  shareCents Int
+
+  expense Expense     @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  guest   GuestMember @relation(fields: [guestId], references: [id], onDelete: Cascade)
+
+  @@unique([expenseId, guestId])
+  @@index([guestId])
 }
 
 model ExpenseShare {

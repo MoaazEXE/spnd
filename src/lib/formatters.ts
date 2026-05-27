@@ -1,12 +1,31 @@
-/** Format cents as Malaysian Ringgit. decimals=2 for totals, 0 for list rows. */
+export const CURRENCIES = [
+  { code: 'MYR', symbol: 'RM',  label: 'Malaysian Ringgit', locale: 'en-MY' },
+  { code: 'USD', symbol: '$',   label: 'US Dollar',          locale: 'en-US' },
+  { code: 'EUR', symbol: '€',   label: 'Euro',               locale: 'de-DE' },
+  { code: 'SAR', symbol: '﷼',  label: 'Saudi Riyal',        locale: 'ar-SA' },
+  { code: 'GBP', symbol: '£',   label: 'British Pound',      locale: 'en-GB' },
+  { code: 'SGD', symbol: 'S$',  label: 'Singapore Dollar',   locale: 'en-SG' },
+] as const
+
+export type CurrencyCode = (typeof CURRENCIES)[number]['code']
+
+function currencyMeta(code: string) {
+  return CURRENCIES.find(c => c.code === code) ?? CURRENCIES[0]
+}
+
+/** Format cents with a specific currency. decimals=2 for totals, 0 for list rows. */
+export function fmtCurrency(cents: number, currency: string, decimals: 0 | 2 = 2): string {
+  const meta = currencyMeta(currency)
+  const amount = new Intl.NumberFormat(meta.locale, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(cents / 100)
+  return `${meta.symbol} ${amount}`
+}
+
+/** Format cents as Malaysian Ringgit (default currency). decimals=2 for totals, 0 for list rows. */
 export function fmtRM(cents: number, decimals: 0 | 2 = 2): string {
-  return (
-    'RM ' +
-    new Intl.NumberFormat('en-MY', {
-      minimumFractionDigits: decimals,
-      maximumFractionDigits: decimals,
-    }).format(cents / 100)
-  )
+  return fmtCurrency(cents, 'MYR', decimals)
 }
 
 /** Human-readable countdown from milliseconds remaining. */

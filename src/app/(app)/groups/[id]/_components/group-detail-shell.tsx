@@ -3,19 +3,21 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, ShoppingBag, Clock, UserPlus } from 'lucide-react'
-import { fmtRM } from '@/lib/formatters'
+import { useFmt } from '@/lib/currency-context'
 import { Avatar } from '@/components/ui/avatar'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { useGroupRealtime } from '@/lib/use-group-realtime'
 import { AddExpenseSheet } from './add-expense-sheet'
 import { AddMemberSheet } from './add-member-sheet'
+import { AddProposalSheet } from './add-proposal-sheet'
 import { EditExpenseSheet } from './edit-expense-sheet'
 import { ActivityList } from './activity-list'
 import { MembersList } from './members-list'
+import { ProposalCard } from './proposal-card'
 import { DangerZone } from './danger-zone'
 import { TransferOwnershipSheet } from './transfer-ownership-sheet'
-import type { GroupMemberView, GroupActivityView } from '../page'
+import type { GroupMemberView, GroupActivityView, GroupProposalView, GroupGuestView } from '../page'
 
 type Tab = 'activity' | 'cooling' | 'members'
 
@@ -23,7 +25,9 @@ interface Props {
   groupId: string
   groupName: string
   members: GroupMemberView[]
+  guests: GroupGuestView[]
   activity: GroupActivityView[]
+  proposals: GroupProposalView[]
   currentUserId: string
   isCreator: boolean
   savedTogetherCents: number
@@ -34,14 +38,18 @@ export function GroupDetailShell({
   groupId,
   groupName,
   members,
+  guests,
   activity,
+  proposals,
   currentUserId,
   isCreator,
   savedTogetherCents,
   youBalanceCents,
 }: Props) {
+  const fmt = useFmt()
   const [tab, setTab] = useState<Tab>('activity')
   const [adding, setAdding] = useState(false)
+  const [proposing, setProposing] = useState(false)
   const [inviting, setInviting] = useState(false)
   const [transferring, setTransferring] = useState(false)
   const [editing, setEditing] = useState<GroupActivityView | null>(null)
@@ -63,7 +71,7 @@ export function GroupDetailShell({
         <button
           type="button"
           onClick={() => setInviting(true)}
-          aria-label="Invite member"
+          aria-label="Add member"
           className="w-11 h-11 lg:w-9 lg:h-9 rounded-full flex items-center justify-center hover:bg-foreground/5 transition-colors"
         >
           <UserPlus size={18} strokeWidth={1.8} className="text-foreground" />
@@ -82,7 +90,7 @@ export function GroupDetailShell({
           Saved together
         </p>
         <p className="mt-1 font-display text-4xl font-semibold text-primary tabular-nums tracking-tight">
-          {fmtRM(savedTogetherCents)}
+          {fmt(savedTogetherCents)}
         </p>
 
         <div className="mt-4 flex items-center justify-center gap-1">
@@ -105,8 +113,8 @@ export function GroupDetailShell({
               className="inline-flex items-center px-3.5 h-11 lg:h-9 rounded-lg border border-border bg-background text-xs font-semibold text-foreground hover:bg-muted transition-colors"
             >
               {youBalanceCents > 0
-                ? `You're owed ${fmtRM(youBalanceCents, 0)}`
-                : `You owe ${fmtRM(Math.abs(youBalanceCents), 0)}`}
+                ? `You're owed ${fmt(youBalanceCents, 0)}`
+                : `You owe ${fmt(Math.abs(youBalanceCents), 0)}`}
             </Link>
             <Link
               href={`/groups/${groupId}/settle`}
@@ -123,8 +131,8 @@ export function GroupDetailShell({
         {(
           [
             { id: 'activity', label: 'Activity' },
-            { id: 'cooling', label: 'Cooling' },
-            { id: 'members', label: `Members · ${members.length}` },
+            { id: 'cooling', label: proposals.length > 0 ? `Cooling · ${proposals.length}` : 'Cooling' },
+            { id: 'members', label: `Members · ${members.length + guests.length}` },
           ] as const
         ).map(t => (
           <button
@@ -152,10 +160,27 @@ export function GroupDetailShell({
           showResplitAll={hasSplitActivity}
         />
       )}
-      {tab === 'cooling' && <CoolingTabEmpty />}
+      {tab === 'cooling' && (
+        proposals.length === 0 ? (
+          <CoolingTabEmpty />
+        ) : (
+          <div className="flex flex-col gap-3">
+            {proposals.map(p => (
+              <ProposalCard key={p.id} proposal={p} currentUserId={currentUserId} />
+            ))}
+          </div>
+        )
+      )}
       {tab === 'members' && (
         <>
-          <MembersList members={members} onInvite={() => setInviting(true)} />
+          <MembersList
+            members={members}
+            guests={guests}
+            isCreator={isCreator}
+            currentUserId={currentUserId}
+            groupId={groupId}
+            onAddMember={() => setInviting(true)}
+          />
           <DangerZone
             groupId={groupId}
             groupName={groupName}
@@ -180,9 +205,8 @@ export function GroupDetailShell({
           </button>
           <button
             type="button"
-            disabled
-            title="Coming next sprint"
-            className="flex-1 h-11 rounded-lg bg-gold-tint text-gold-deep text-sm font-semibold inline-flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+            onClick={() => setProposing(true)}
+            className="flex-1 h-11 rounded-lg bg-gold-tint text-gold-deep text-sm font-semibold inline-flex items-center justify-center gap-2 hover:bg-gold-soft transition-colors active:scale-[0.97]"
           >
             <Clock size={16} strokeWidth={1.8} />
             Cool on it
@@ -199,11 +223,15 @@ export function GroupDetailShell({
             avatarUrl: m.avatarUrl,
             isYou: m.id === currentUserId,
           }))}
+          guests={guests}
           onClose={() => setAdding(false)}
         />
       )}
       {inviting && (
         <AddMemberSheet groupId={groupId} onClose={() => setInviting(false)} />
+      )}
+      {proposing && (
+        <AddProposalSheet groupId={groupId} onClose={() => setProposing(false)} />
       )}
       {editing && (
         <EditExpenseSheet
@@ -211,9 +239,11 @@ export function GroupDetailShell({
           initialDescription={editing.description}
           initialAmountCents={editing.amountCents}
           shareCount={editing.shareCount}
-          memberCount={members.length}
+          memberCount={members.length + guests.length}
           payerName={editing.payerName}
           isSettlement={editing.type === 'settlement'}
+          members={members.map(m => ({ id: m.id, name: m.id === currentUserId ? 'You' : m.name, avatarUrl: m.avatarUrl }))}
+          guests={guests}
           onClose={() => setEditing(null)}
         />
       )}
@@ -238,7 +268,7 @@ function CoolingTabEmpty() {
       </div>
       <p className="text-sm font-semibold text-foreground">No cooling proposals yet.</p>
       <p className="mt-1 text-xs text-muted-foreground max-w-xs mx-auto">
-        Shared cool-offs let everyone weigh in before the group commits. Coming soon.
+        Shared cool-offs let everyone weigh in before the group commits.
       </p>
     </Card>
   )

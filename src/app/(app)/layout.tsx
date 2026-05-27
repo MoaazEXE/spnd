@@ -1,6 +1,8 @@
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/supabase/server'
+import { usersRepo } from '@/data/users.repo'
+import { CurrencyProvider } from '@/lib/currency-context'
 import { LogModalProvider } from './_components/log-modal-context'
 import { ResolveSheetProvider } from './_components/resolve-sheet-context'
 import { NavData } from './_components/nav-data'
@@ -29,7 +31,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       ? (user.user_metadata.name as string)
       : user.email?.split('@')[0] ?? 'You'
 
+  // Read currency for provider — cheap cached call
+  const dbUser = await usersRepo.findById(user.id)
+  const currency = dbUser?.currency ?? 'MYR'
+
   return (
+    <CurrencyProvider currency={currency}>
     <LogModalProvider>
       <ResolveSheetProvider>
         <div className="min-h-screen flex flex-col lg:flex-row bg-background">
@@ -57,5 +64,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </Suspense>
       </ResolveSheetProvider>
     </LogModalProvider>
+    </CurrencyProvider>
   )
 }

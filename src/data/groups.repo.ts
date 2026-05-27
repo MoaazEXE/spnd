@@ -8,11 +8,18 @@ const groupInclude = {
     orderBy: { joinedAt: 'asc' as const },
     include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
   },
+  guestMembers: {
+    orderBy: { createdAt: 'asc' as const },
+    select: { id: true, name: true, addedBy: true, createdAt: true },
+  },
   expenses: {
     where: { status: 'COMMITTED' as const },
     orderBy: { createdAt: 'desc' as const },
     include: {
       shares: true,
+      guestShares: {
+        include: { guest: { select: { id: true, name: true, addedBy: true } } },
+      },
       payer: { select: { id: true, name: true, avatarUrl: true } },
     },
   },
@@ -74,10 +81,30 @@ const findPendingInvitesByUserCached = cache(async (userId: string) =>
   )(),
 )
 
+/** Cooling proposals for a group (type=PROPOSAL, status != CANCELLED). */
+const findProposalsByGroupCached = cache(async (groupId: string, userId: string) =>
+  unstable_cache(
+    async () =>
+      prisma.expense.findMany({
+        where: { groupId, type: 'PROPOSAL', status: { not: 'CANCELLED' } },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          payer: { select: { id: true, name: true, avatarUrl: true } },
+          shares: {
+            include: { user: { select: { id: true, name: true } } },
+          },
+        },
+      }),
+    ['groups-findProposalsByGroup', groupId, userId],
+    { tags: [`group-${groupId}`, `groups-user-${userId}`] },
+  )(),
+)
+
 export const groupsRepo = {
   findManyByUserDeep: findManyByUserDeepCached,
   findByIdDeep: findByIdDeepCached,
   findPendingInvitesByUser: findPendingInvitesByUserCached,
+  findProposalsByGroup: findProposalsByGroupCached,
 
   async findManyByUser(userId: string) {
     return findManyByUserDeepCached(userId)
@@ -125,6 +152,17 @@ export const groupsRepo = {
       { tags: [`groups-user-${userId}`] },
     )(),
   ),
+
+  async addGuestMember(groupId: string, name: string, addedBy: string) {
+    return prisma.guestMember.create({ data: { groupId, name: name.trim(), addedBy } })
+  },
+
+  async removeGuestMember(guestId: string, requestingUserId: string) {
+    const guest = await prisma.guestMember.findUnique({ where: { id: guestId } })
+    if (!guest) return
+    if (guest.addedBy !== requestingUserId) throw new Error('Only the person who added this guest can remove them.')
+    await prisma.guestMember.delete({ where: { id: guestId } })
+  },
 
   async searchByUser(userId: string, query: string, limit = 5) {
     const q = query.trim()

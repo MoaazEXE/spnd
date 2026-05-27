@@ -9,15 +9,16 @@ import type { TimeCostInput } from '@/types'
 interface Props {
   userId: string
   timeCostContext: Omit<TimeCostInput, 'amountCents'> | null
+  timezone?: string
 }
 
-export async function HeroRow({ userId, timeCostContext }: Props) {
+export async function HeroRow({ userId, timeCostContext, timezone = 'UTC' }: Props) {
   const [skipped, bought] = await Promise.all([
     itemsRepo.findSkippedByUser(userId),
     itemsRepo.findBoughtByUser(userId),
   ])
 
-  const summary = summarizeSkipped(skipped, 30)
+  const summary = summarizeSkipped(skipped, 30, timezone)
   const skipRatePct = computeSkipRate(skipped.length, bought.length)
   const heroTimeCost =
     timeCostContext && summary.totalCents > 0

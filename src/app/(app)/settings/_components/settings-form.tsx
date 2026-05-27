@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { saveIncomeSettings } from '@/app/actions/users'
 import { calculateTimeCost } from '@/core/timecost/timeCost'
+import { CURRENCIES } from '@/lib/formatters'
 import { Card } from '@/components/ui/card'
 import { ErrorBanner } from '@/components/ui/error-banner'
 import { cn } from '@/lib/utils'
@@ -19,6 +20,7 @@ interface Props {
     timeCostMode: 'SIMPLE' | 'TRUE_HOURLY'
     commuteHours: number | null
     workCostsCents: number | null
+    currency: string
   }
 }
 
@@ -33,6 +35,7 @@ export function SettingsForm({ initial }: Props) {
     }
     wasPending.current = isPending
   }, [isPending, message])
+  const [currency, setCurrency] = useState(initial.currency)
   const [income, setIncome] = useState(
     initial.monthlyIncomeCents ? String(initial.monthlyIncomeCents / 100) : '',
   )
@@ -64,6 +67,21 @@ export function SettingsForm({ initial }: Props) {
 
   return (
     <form action={action} className="space-y-5">
+      <Field label="Currency">
+        <select
+          name="currency"
+          value={currency}
+          onChange={e => setCurrency(e.target.value)}
+          className={cn(INPUT, 'appearance-none')}
+        >
+          {CURRENCIES.map(c => (
+            <option key={c.code} value={c.code}>
+              {c.symbol} — {c.label}
+            </option>
+          ))}
+        </select>
+      </Field>
+
       <div className="rounded-lg bg-primary-tint px-4 py-3.5">
         <p className="text-xs text-primary-deep leading-relaxed">
           Optional. If you add your income, every price will also show as{' '}
@@ -71,8 +89,8 @@ export function SettingsForm({ initial }: Props) {
         </p>
       </div>
 
-      <Field label="Monthly take-home (RM)">
-        <Affix prefix="RM">
+      <Field label="Monthly take-home">
+        <Affix prefix={CURRENCIES.find(c => c.code === currency)?.symbol ?? currency}>
           <input
             name="monthlyIncome"
             type="number"
@@ -133,8 +151,8 @@ export function SettingsForm({ initial }: Props) {
               className={INPUT}
             />
           </Field>
-          <Field label="Monthly work costs (RM)">
-            <Affix prefix="RM">
+          <Field label="Monthly work costs">
+            <Affix prefix={CURRENCIES.find(c => c.code === currency)?.symbol ?? currency}>
               <input
                 name="workCosts"
                 type="number"
@@ -157,10 +175,11 @@ export function SettingsForm({ initial }: Props) {
             Your hour is worth
           </p>
           <p className="text-4xl font-bold leading-tight tracking-tight text-gold-deep tabular-nums">
-            RM {(1 / preview.hours).toFixed(2)}
+            {CURRENCIES.find(c => c.code === currency)?.symbol ?? currency}{' '}
+            {(1 / preview.hours).toFixed(2)}
           </p>
           <p className="mt-1.5 text-xs text-gold-deep/70">
-            {trueMode ? 'after work-related costs' : 'before adjustments'} · every RM 1 costs you{' '}
+            {trueMode ? 'after work-related costs' : 'before adjustments'} · every 1 unit costs you{' '}
             {preview.formatted}
           </p>
         </div>

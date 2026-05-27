@@ -12,6 +12,7 @@ export interface UserContext {
   initial: string
   avatarUrl: string | null
   defaultCoolingPeriod: string
+  currency: string
   timeCostContext: TimeCostContext | null
 }
 
@@ -48,6 +49,7 @@ export const getUserContext = cache(async (): Promise<UserContext | null> => {
     initial: (name || '?').charAt(0).toUpperCase(),
     avatarUrl: dbUser?.avatarUrl ?? null,
     defaultCoolingPeriod: dbUser?.defaultCoolingPeriod ?? '1d',
+    currency: dbUser?.currency ?? 'MYR',
     timeCostContext,
   }
 })

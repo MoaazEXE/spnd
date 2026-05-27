@@ -7,7 +7,7 @@ import { computeBalances, equalSplit } from '@/core/debt/groupBalances'
 import { resplitAll } from '@/app/actions/groups'
 import { Avatar } from '@/components/ui/avatar'
 import { Card } from '@/components/ui/card'
-import { fmtRM } from '@/lib/formatters'
+import { fmtCurrency } from '@/lib/formatters'
 import { cn } from '@/lib/utils'
 
 interface PageProps {
@@ -19,23 +19,34 @@ export default async function ResplitAllPage({ params }: PageProps) {
   const ctx = await getUserContext()
   if (!ctx) redirect('/login')
 
+  const currency = ctx.currency ?? 'MYR'
+  const fmt = (cents: number, decimals: 0 | 2 = 2) => fmtCurrency(cents, currency, decimals)
   const group = await groupsRepo.findByIdDeep(id, ctx.id)
   if (!group) notFound()
 
   const memberIds = group.members.map(m => m.userId)
+  const guestMembers = group.guestMembers
+  const totalPeople = memberIds.length + guestMembers.length
   const splitExpenses = group.expenses.filter(e => e.description !== 'Settlement')
 
   // Current balances (uses real shares as stored).
   const currentBalances = computeBalances(group.expenses)
 
-  // Projected: replace each split expense's shares with an equal split across all
-  // current members. Settlements stay as-is.
+  // Projected: replace each split expense's shares with an equal split across
+  // all current members + guests. Settlements stay as-is.
   const projectedExpenses = group.expenses.map(e => {
     if (e.description === 'Settlement') return e
-    return {
-      ...e,
-      shares: equalSplit(e.amountCents, memberIds, e.payerId),
-    }
+    const base = Math.floor(e.amountCents / totalPeople)
+    const remainder = e.amountCents - base * totalPeople
+    const memberShares = memberIds.map(uid => ({
+      userId: uid,
+      shareCents: uid === e.payerId ? base + remainder : base,
+    }))
+    const projectedGuestShares = guestMembers.map(g => ({
+      shareCents: base,
+      guest: { addedBy: g.addedBy },
+    }))
+    return { ...e, shares: memberShares, guestShares: projectedGuestShares }
   })
   const projectedBalances = computeBalances(projectedExpenses)
 
@@ -72,7 +83,8 @@ export default async function ResplitAllPage({ params }: PageProps) {
       </h1>
       <p className="mt-1.5 text-sm text-muted-foreground">
         Recomputes every activity (except settlements) as an equal split across all{' '}
-        {memberIds.length} current members.
+        {totalPeople} {totalPeople === 1 ? 'person' : 'people'}
+        {guestMembers.length > 0 ? ` (${memberIds.length} members + ${guestMembers.length} guests)` : ''}.
       </p>
 
       {splitExpenses.length === 0 ? (
@@ -112,11 +124,11 @@ export default async function ResplitAllPage({ params }: PageProps) {
                   {r.name}
                 </p>
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  <BalancePill cents={r.before} muted />
+                  <BalancePill cents={r.before} muted fmt={fmt} />
                   <span className="text-xs text-subtle-foreground">→</span>
-                  <BalancePill cents={r.after} />
+                  <BalancePill cents={r.after} fmt={fmt} />
                 </div>
-                <DeltaTag delta={r.delta} />
+                <DeltaTag delta={r.delta} fmt={fmt} />
               </div>
             ))}
           </Card>
@@ -149,7 +161,7 @@ export default async function ResplitAllPage({ params }: PageProps) {
   )
 }
 
-function BalancePill({ cents, muted = false }: { cents: number; muted?: boolean }) {
+function BalancePill({ cents, muted = false, fmt }: { cents: number; muted?: boolean; fmt: (c: number, d?: 0 | 2) => string }) {
   const color =
     cents > 0 ? 'text-primary' : cents < 0 ? 'text-coral-deep' : 'text-muted-foreground'
   return (
@@ -159,12 +171,12 @@ function BalancePill({ cents, muted = false }: { cents: number; muted?: boolean 
         muted ? 'text-muted-foreground' : color,
       )}
     >
-      {cents === 0 ? '—' : (cents > 0 ? '+' : '−') + fmtRM(Math.abs(cents), 0)}
+      {cents === 0 ? '—' : (cents > 0 ? '+' : '−') + fmt(Math.abs(cents), 0)}
     </span>
   )
 }
 
-function DeltaTag({ delta }: { delta: number }) {
+function DeltaTag({ delta, fmt }: { delta: number; fmt: (c: number, d?: 0 | 2) => string }) {
   if (delta === 0) {
     return (
       <span className="text-[11px] text-subtle-foreground tabular-nums w-14 text-right">
@@ -182,7 +194,7 @@ function DeltaTag({ delta }: { delta: number }) {
       )}
     >
       {sign}
-      {fmtRM(Math.abs(delta), 0).replace('RM ', '')}
+      {fmt(Math.abs(delta), 0)}
     </span>
   )
 }
