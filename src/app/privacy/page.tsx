@@ -105,9 +105,9 @@ export default function PrivacyPage() {
           <Section title="Questions">
             <p>
               If you have any questions about this policy or your data, email us at{' '}
+              {/* TODO: replace with a pro email once the domain is set up */}
               <a
-                {/* TODO: replace with a pro email once the domain is set up */}
-              href="mailto:mouazkhamis@gmail.com"
+                href="mailto:mouazkhamis@gmail.com"
                 className="font-semibold text-primary hover:underline"
               >
                 mouazkhamis@gmail.com
