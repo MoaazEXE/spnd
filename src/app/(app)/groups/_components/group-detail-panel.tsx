@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ShoppingBag, Clock, UserPlus, Scale, ArrowRight, Check, Users, ChevronDown, ChevronUp, UserMinus } from 'lucide-react'
+import { ShoppingBag, Clock, UserPlus, Scale, ArrowRight, Check, Users, ChevronDown, ChevronUp, UserMinus, AlertTriangle, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { useFmt } from '@/lib/currency-context'
 import { Avatar } from '@/components/ui/avatar'
@@ -17,8 +17,9 @@ import { AddMemberSheet } from '../[id]/_components/add-member-sheet'
 import { AddProposalSheet } from '../[id]/_components/add-proposal-sheet'
 import { EditExpenseSheet } from '../[id]/_components/edit-expense-sheet'
 import { DangerZone } from '../[id]/_components/danger-zone'
+import { ProposalCard } from '../[id]/_components/proposal-card'
 import { TransferOwnershipSheet } from '../[id]/_components/transfer-ownership-sheet'
-import type { GroupMemberView, GroupActivityView, GroupGuestView } from '../[id]/page'
+import type { GroupMemberView, GroupActivityView, GroupGuestView, GroupProposalView } from '../[id]/page'
 import type { PlanRow } from '../[id]/settle/_components/settle-shell'
 
 interface Props {
@@ -27,6 +28,7 @@ interface Props {
   members: GroupMemberView[]
   guests: GroupGuestView[]
   activity: GroupActivityView[]
+  proposals: GroupProposalView[]
   currentUserId: string
   isCreator: boolean
   savedTogetherCents: number
@@ -42,6 +44,7 @@ export function GroupDetailPanel({
   members,
   guests,
   activity,
+  proposals,
   currentUserId,
   isCreator,
   savedTogetherCents,
@@ -58,11 +61,11 @@ export function GroupDetailPanel({
   const [transferring, setTransferring] = useState(false)
   const [editing, setEditing] = useState<GroupActivityView | null>(null)
   const [showMembers, setShowMembers] = useState(false)
-  const [removing, setRemoving] = useState<{ type: 'member' | 'guest'; id: string; name: string } | null>(null)
+  const [removing, setRemoving] = useState<{ type: 'member' | 'guest'; id: string; name: string; balanceCents: number } | null>(null)
   const [removePending, startRemove] = useTransition()
   useGroupRealtime(groupId)
 
-  function doRemove() {
+  function doRemove(andResplit: boolean) {
     if (!removing) return
     startRemove(async () => {
       try {
@@ -76,15 +79,21 @@ export function GroupDetailPanel({
           await removeGuestMember(fd)
         }
         toast.success(`${removing.name} removed from group`)
-        router.refresh()
+        setRemoving(null)
+        if (andResplit) {
+          router.push(`/groups/${groupId}/resplit`)
+        } else {
+          router.refresh()
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Could not remove.'
         if (!msg.includes('NEXT_REDIRECT')) toast.error(msg)
-      } finally {
         setRemoving(null)
       }
     })
   }
+
+  const removingHasBalance = Math.abs(removing?.balanceCents ?? 0) > 0
 
   const hasSplitActivity = activity.some(a => a.type === 'split')
   // Resplit-all only matters when there are at least two participants — members
@@ -267,19 +276,20 @@ export function GroupDetailPanel({
             <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">
               Cooling Proposals
             </p>
-            <Card padding="none" className="text-center py-6">
-              <div className="mx-auto w-10 h-10 rounded-full bg-primary-tint flex items-center justify-center text-primary mb-2.5">
-                <Clock size={17} strokeWidth={1.8} />
+            {proposals.length === 0 ? (
+              <Card padding="none" className="text-center py-6">
+                <div className="mx-auto w-10 h-10 rounded-full bg-primary-tint flex items-center justify-center text-primary mb-2.5">
+                  <Clock size={17} strokeWidth={1.8} />
+                </div>
+                <p className="text-xs text-muted-foreground">No open proposals.</p>
+              </Card>
+            ) : (
+              <div className="space-y-2">
+                {proposals.map(p => (
+                  <ProposalCard key={p.id} proposal={p} currentUserId={currentUserId} />
+                ))}
               </div>
-              <Link
-                href={`/groups/${groupId}`}
-                className="text-xs font-semibold text-primary hover:underline"
-              >
-                {openProposalsCount > 0
-                  ? `View ${openProposalsCount} proposal${openProposalsCount > 1 ? 's' : ''} →`
-                  : 'View proposals →'}
-              </Link>
-            </Card>
+            )}
           </div>
 
           {/* Settle Up */}
@@ -381,7 +391,7 @@ export function GroupDetailPanel({
                       {isCreator && m.id !== currentUserId && (
                         <button
                           type="button"
-                          onClick={() => setRemoving({ type: 'member', id: m.id, name: m.name })}
+                          onClick={() => setRemoving({ type: 'member', id: m.id, name: m.name, balanceCents: m.balanceCents })}
                           disabled={removePending}
                           className="ml-0.5 w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-coral-deep hover:bg-coral-tint transition-colors flex-shrink-0"
                           aria-label={`Remove ${m.name}`}
@@ -407,7 +417,7 @@ export function GroupDetailPanel({
                       {(isCreator || g.addedBy === currentUserId) && (
                         <button
                           type="button"
-                          onClick={() => setRemoving({ type: 'guest', id: g.id, name: g.name })}
+                          onClick={() => setRemoving({ type: 'guest', id: g.id, name: g.name, balanceCents: g.balanceCents })}
                           disabled={removePending}
                           className="ml-0.5 w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-coral-deep hover:bg-coral-tint transition-colors flex-shrink-0"
                           aria-label={`Remove ${g.name}`}
@@ -479,16 +489,50 @@ export function GroupDetailPanel({
           onClose={() => setTransferring(false)}
         />
       )}
-      <ConfirmDialog
-        open={removing !== null}
-        title={`Remove ${removing?.name ?? ''}?`}
-        description="Their past expense shares stay on record. Balances adjust automatically."
-        confirmLabel="Remove"
-        destructive
-        busy={removePending}
-        onCancel={() => setRemoving(null)}
-        onConfirm={doRemove}
-      />
+      {removing !== null && removingHasBalance && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center px-4" role="dialog" aria-modal="true">
+          <div className="absolute inset-0 bg-foreground/45 backdrop-blur-sm animate-fade-in" onClick={removePending ? undefined : () => setRemoving(null)} />
+          <div className="relative w-full max-w-[420px] bg-card rounded-2xl shadow-pop animate-pop overflow-hidden">
+            <button type="button" onClick={() => setRemoving(null)} disabled={removePending} aria-label="Close" className="absolute top-2 right-2 w-11 h-11 lg:w-9 lg:h-9 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50">
+              <X size={16} strokeWidth={2} />
+            </button>
+            <div className="px-6 pt-7 pb-5">
+              <div className="mx-auto mb-4 w-12 h-12 rounded-full flex items-center justify-center bg-coral-tint text-coral-deep">
+                <AlertTriangle size={20} strokeWidth={1.8} />
+              </div>
+              <h2 className="text-center text-base font-semibold text-foreground">Remove {removing.name}?</h2>
+              <p className="mt-2 text-center text-sm text-muted-foreground leading-relaxed">
+                {removing.name} has an outstanding balance of{' '}
+                <span className="font-semibold text-foreground">{fmt(Math.abs(removing.balanceCents), 0)}</span>.
+                {' '}Their past shares stay on record. Re-split all activity equally across the remaining members, or keep the current split as-is.
+              </p>
+            </div>
+            <div className="px-6 pb-6 flex flex-col gap-2.5">
+              <button type="button" onClick={() => doRemove(true)} disabled={removePending} className="w-full h-11 rounded-lg bg-coral-deep text-white text-sm font-semibold hover:bg-coral-deep/90 transition-colors active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed">
+                {removePending ? '…' : 'Remove & re-split equally'}
+              </button>
+              <button type="button" onClick={() => doRemove(false)} disabled={removePending} className="w-full h-11 rounded-lg border border-border text-sm font-semibold text-foreground hover:bg-muted transition-colors disabled:opacity-50">
+                Remove only
+              </button>
+              <button type="button" onClick={() => setRemoving(null)} disabled={removePending} className="w-full h-11 rounded-lg text-sm font-semibold text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {removing !== null && !removingHasBalance && (
+        <ConfirmDialog
+          open
+          title={`Remove ${removing.name}?`}
+          description="Their past expense shares stay on record. Balances adjust automatically."
+          confirmLabel="Remove"
+          destructive
+          busy={removePending}
+          onCancel={() => setRemoving(null)}
+          onConfirm={() => doRemove(false)}
+        />
+      )}
     </div>
   )
 }

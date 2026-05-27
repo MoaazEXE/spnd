@@ -327,7 +327,7 @@ export function ProfileShell({
             </section>
 
             {/* Milestones — real data */}
-            <section>
+            <section id="milestones">
               <div className="flex items-baseline justify-between mb-4">
                 <h2 className="font-display text-2xl font-medium tracking-tight text-foreground">
                   Milestones

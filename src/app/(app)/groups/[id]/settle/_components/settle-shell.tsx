@@ -364,7 +364,7 @@ function PaymentRow({
       <div className="flex-1 min-w-0 hidden sm:flex flex-col items-start">
         <p className="text-[10px] text-subtle-foreground truncate">{helperFor(row)}</p>
       </div>
-      <p className="text-base font-bold text-foreground tabular-nums flex-shrink-0 min-w-[80px] text-right">
+      <p className="text-base font-bold text-foreground tabular-nums flex-shrink-0 text-right">
         {fmt(row.amountCents)}
       </p>
       <span

@@ -34,9 +34,10 @@ export function CoolingGrid({ items, timeCostContext }: Props) {
   // When server data refreshes, optimistic items have been persisted — clear them
   useEffect(() => { clearOptimistic() }, [items, clearOptimistic])
 
-  // Merge: optimistic items first (instant feedback), then server items, excluding resolved
+  // Deduplicate: exclude optimistic items already in server data (matched by title+amount)
+  const serverKeys = new Set(items.map(i => `${i.title}::${i.amountCents}`))
   const visibleItems = [
-    ...optimisticItems.filter(o => !resolvedIds.has(o.id)),
+    ...optimisticItems.filter(o => !resolvedIds.has(o.id) && !serverKeys.has(`${o.title}::${o.amountCents}`)),
     ...items.filter(item => !resolvedIds.has(item.id)),
   ]
 

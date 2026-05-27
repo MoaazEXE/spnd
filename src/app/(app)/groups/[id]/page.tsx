@@ -22,6 +22,7 @@ export interface GroupGuestView {
   name: string
   addedBy: string
   createdAt: string
+  balanceCents: number
 }
 
 export interface GroupActivityView {
@@ -45,7 +46,7 @@ export interface GroupProposalView {
   proposerName: string
   coolingUntil: string
   isCommitted: boolean
-  reactions: { userId: string; userName: string; reaction: 'IN' | 'SKIP' | null }[]
+  reactions: { userId: string; userName: string; avatarUrl: string | null; reaction: 'IN' | 'SKIP' | null }[]
   myReaction: 'IN' | 'SKIP' | null
 }
 
@@ -74,15 +75,20 @@ export default async function GroupPage({ params }: PageProps) {
   }))
 
   const activity: GroupActivityView[] = expenses.map(e => {
-    const isSettlement = e.description === 'Settlement'
+    const isSettlement = e.description.startsWith('Settlement')
     const payerLabel = e.payerId === ctx.id ? 'You' : e.payer.name
     return {
       id: e.id,
       type: isSettlement ? 'settlement' : 'split',
       title: isSettlement
-        ? `${payerLabel} paid ${
-            group.members.find(m => m.userId === e.shares[0]?.userId)?.user.name ?? 'a member'
-          }`
+        ? (() => {
+            const recipientName = group.members.find(m => m.userId === e.shares[0]?.userId)?.user.name ?? 'a member'
+            const guestMatch = e.description.match(/^Settlement \((.+)\)$/)
+            const guestName = guestMatch?.[1]
+            return guestName
+              ? `${guestName} settled with ${recipientName}`
+              : `${payerLabel} paid ${recipientName}`
+          })()
         : e.description,
       description: e.description,
       amountCents: e.amountCents,
@@ -99,6 +105,7 @@ export default async function GroupPage({ params }: PageProps) {
     name: g.name,
     addedBy: g.addedBy,
     createdAt: new Date(g.createdAt).toISOString(),
+    balanceCents: balances.get(`guest:${g.id}`) ?? 0,
   }))
 
   const proposals: GroupProposalView[] = rawProposals.map(p => ({
@@ -112,6 +119,7 @@ export default async function GroupPage({ params }: PageProps) {
     reactions: p.shares.map(s => ({
       userId: s.userId,
       userName: s.userId === ctx.id ? 'You' : s.user.name,
+      avatarUrl: s.user.avatarUrl ?? null,
       reaction: (s.reaction as 'IN' | 'SKIP' | null) ?? null,
     })),
     myReaction: (p.shares.find(s => s.userId === ctx.id)?.reaction as 'IN' | 'SKIP' | null) ?? null,

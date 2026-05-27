@@ -91,7 +91,7 @@ const findProposalsByGroupCached = cache(async (groupId: string, userId: string)
         include: {
           payer: { select: { id: true, name: true, avatarUrl: true } },
           shares: {
-            include: { user: { select: { id: true, name: true } } },
+            include: { user: { select: { id: true, name: true, avatarUrl: true } } },
           },
         },
       }),
@@ -105,6 +105,45 @@ export const groupsRepo = {
   findByIdDeep: findByIdDeepCached,
   findPendingInvitesByUser: findPendingInvitesByUserCached,
   findProposalsByGroup: findProposalsByGroupCached,
+
+  async findRecentGroupExpensesByOthers(userId: string) {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000)
+    return prisma.expense.findMany({
+      where: {
+        type: 'INSTANT',
+        status: 'COMMITTED',
+        NOT: { description: { startsWith: 'Settlement' } },
+        payerId: { not: userId },
+        createdAt: { gte: since },
+        group: { members: { some: { userId, status: 'ACTIVE' } } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+      select: {
+        id: true,
+        description: true,
+        amountCents: true,
+        createdAt: true,
+        groupId: true,
+        group: { select: { name: true } },
+        payer: { select: { name: true } },
+      },
+    })
+  },
+
+  async findProposalsForGroups(groupIds: string[]) {
+    if (groupIds.length === 0) return []
+    return prisma.expense.findMany({
+      where: { groupId: { in: groupIds }, type: 'PROPOSAL', status: { not: 'CANCELLED' } },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        payer: { select: { id: true, name: true } },
+        shares: {
+          include: { user: { select: { id: true, name: true, avatarUrl: true } } },
+        },
+      },
+    })
+  },
 
   async findManyByUser(userId: string) {
     return findManyByUserDeepCached(userId)

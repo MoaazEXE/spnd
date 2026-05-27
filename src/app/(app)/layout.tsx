@@ -33,7 +33,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   // Read DB row for currency + onboarding gate
   const dbUser = await usersRepo.findById(user.id)
-  if (!dbUser?.onboardingCompletedAt) redirect('/onboarding')
+  if (!dbUser) {
+    // No DB row — sign out to break any potential redirect loop for stale sessions
+    const { createClient } = await import('@/lib/supabase/server')
+    const supabase = await createClient()
+    await supabase.auth.signOut()
+    redirect('/login')
+  }
+  // Users created before the onboarding feature launched are grandfathered in.
+  // Only redirect new users (created after the launch date) who haven't completed it.
+  const ONBOARDING_LAUNCH = new Date('2026-05-27T00:00:00Z')
+  if (!dbUser.onboardingCompletedAt && dbUser.createdAt >= ONBOARDING_LAUNCH) {
+    redirect('/onboarding')
+  }
   const currency = dbUser.currency
 
   return (

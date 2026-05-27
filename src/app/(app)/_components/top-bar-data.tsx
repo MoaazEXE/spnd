@@ -13,10 +13,11 @@ export async function TopBarData({ initial }: { initial: string }) {
   const user = await getCurrentUser()
   if (!user) return null
 
-  const [coolingItems, pendingInvites, dbUser] = await Promise.all([
+  const [coolingItems, pendingInvites, dbUser, recentGroupExpenses] = await Promise.all([
     itemsRepo.findCoolingForBellByUser(user.id),
     groupsRepo.findPendingInvitesByUser(user.id),
     usersRepo.findById(user.id),
+    groupsRepo.findRecentGroupExpensesByOthers(user.id),
   ])
 
   const notifyCooling = dbUser?.notifyCoolingReady ?? true
@@ -30,10 +31,23 @@ export async function TopBarData({ initial }: { initial: string }) {
       }))
     : []
 
+  const groupExpensesForBell = notifyGroup
+    ? recentGroupExpenses.map(e => ({
+        id: e.id,
+        description: e.description,
+        amountCents: e.amountCents,
+        payerName: e.payer.name,
+        groupId: e.groupId,
+        groupName: e.group.name,
+        createdAt: e.createdAt,
+      }))
+    : []
+
   return (
     <TopBar
       coolingItems={notifyCooling ? coolingItems : []}
       invites={invitesForBell}
+      groupExpenses={groupExpensesForBell}
       userInitial={initial}
       userAvatarUrl={dbUser?.avatarUrl}
     />

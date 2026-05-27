@@ -701,7 +701,7 @@ export async function resplitAll(formData: FormData): Promise<void> {
       members: { where: { status: 'ACTIVE' }, select: { userId: true } },
       guestMembers: { select: { id: true } },
       expenses: {
-        where: { status: 'COMMITTED', NOT: { description: 'Settlement' } },
+        where: { status: 'COMMITTED', NOT: { description: { startsWith: 'Settlement' } } },
         select: { id: true, amountCents: true, payerId: true },
       },
     },
@@ -765,10 +765,14 @@ export async function settleGroup(formData: FormData): Promise<void> {
   // DB sense. We surface them as separate rows on the plan, but the actual
   // cashflow always belongs to a real account holder.
   const guestSponsorById = new Map<string, string>()
+  const guestNameById = new Map<string, string>()
   for (const e of expenses) {
     for (const gs of (e.guestShares ?? [])) {
-      const g = gs.guest as { id?: string; addedBy: string }
-      if (g.id) guestSponsorById.set(g.id, g.addedBy)
+      const g = gs.guest as { id?: string; name: string; addedBy: string }
+      if (g.id) {
+        guestSponsorById.set(g.id, g.addedBy)
+        guestNameById.set(g.id, g.name)
+      }
     }
   }
   const resolveNode = (node: string): string | null => {
@@ -839,12 +843,13 @@ export async function settleGroup(formData: FormData): Promise<void> {
       // covered their own guest's share of an expense they themselves paid).
       if (fromUser === toUser) continue
 
+      const guestName = guestId ? guestNameById.get(guestId) : undefined
       await tx.expense.create({
         data: {
           groupId,
           payerId: fromUser,
           amountCents: p.amountCents,
-          description: 'Settlement',
+          description: guestName ? `Settlement (${guestName})` : 'Settlement',
           type: 'INSTANT',
           status: 'COMMITTED',
           shares: { create: { userId: toUser, shareCents: p.amountCents } },

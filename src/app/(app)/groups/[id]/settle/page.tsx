@@ -66,7 +66,7 @@ export default async function SettlePage({ params }: PageProps) {
   }))
 
   const evidence: EvidenceRow[] = group.expenses
-    .filter(e => e.description !== 'Settlement')
+    .filter(e => !e.description.startsWith('Settlement'))
     .map(e => ({
       id: e.id,
       title: e.description,

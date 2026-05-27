@@ -14,7 +14,7 @@ import { computeBalances, settlementPlan, guestIdFromNode } from '@/core/debt/gr
 import { CreateGroupSheet } from './create-group-sheet'
 import { GroupDetailPanel, GroupDetailPanelEmpty } from './group-detail-panel'
 import type { GroupSummary, InvitePreview, RawGroupForShell } from '../page'
-import type { GroupMemberView, GroupActivityView, GroupGuestView } from '../[id]/page'
+import type { GroupMemberView, GroupActivityView, GroupGuestView, GroupProposalView } from '../[id]/page'
 import type { PlanRow } from '../[id]/settle/_components/settle-shell'
 
 interface SelectedGroupDetail {
@@ -23,6 +23,7 @@ interface SelectedGroupDetail {
   members: GroupMemberView[]
   guests: GroupGuestView[]
   activity: GroupActivityView[]
+  proposals: GroupProposalView[]
   savedTogetherCents: number
   youBalanceCents: number
   settlePlan: PlanRow[]
@@ -133,15 +134,20 @@ export function GroupsListShell({
     }))
 
     const activity: GroupActivityView[] = g.expenses.map(e => {
-      const isSettlement = e.description === 'Settlement'
+      const isSettlement = e.description.startsWith('Settlement')
       const payerLabel = e.payerId === currentUserId ? 'You' : e.payer.name
       return {
         id: e.id,
         type: isSettlement ? 'settlement' : 'split',
         title: isSettlement
-          ? `${payerLabel} paid ${
-              g.members.find(m => m.userId === e.shares[0]?.userId)?.user.name ?? 'a member'
-            }`
+          ? (() => {
+              const recipientName = g.members.find(m => m.userId === e.shares[0]?.userId)?.user.name ?? 'a member'
+              const guestMatch = e.description.match(/^Settlement \((.+)\)$/)
+              const guestName = guestMatch?.[1]
+              return guestName
+                ? `${guestName} settled with ${recipientName}`
+                : `${payerLabel} paid ${recipientName}`
+            })()
           : e.description,
         description: e.description,
         amountCents: e.amountCents,
@@ -173,6 +179,24 @@ export function GroupsListShell({
       name: gm.name,
       addedBy: gm.addedBy,
       createdAt: gm.createdAt,
+      balanceCents: balances.get(`guest:${gm.id}`) ?? 0,
+    }))
+
+    const proposals: GroupProposalView[] = g.proposals.map(p => ({
+      id: p.id,
+      description: p.description,
+      amountCents: p.amountCents,
+      proposerId: p.payerId,
+      proposerName: p.payerId === currentUserId ? 'You' : p.payerName,
+      coolingUntil: p.coolingUntil,
+      isCommitted: p.status === 'COMMITTED',
+      reactions: p.shares.map(s => ({
+        userId: s.userId,
+        userName: s.userId === currentUserId ? 'You' : s.userName,
+        avatarUrl: s.avatarUrl,
+        reaction: (s.reaction as 'IN' | 'SKIP' | null) ?? null,
+      })),
+      myReaction: (p.shares.find(s => s.userId === currentUserId)?.reaction as 'IN' | 'SKIP' | null) ?? null,
     }))
 
     return {
@@ -181,11 +205,12 @@ export function GroupsListShell({
       members,
       guests,
       activity,
+      proposals,
       savedTogetherCents,
       youBalanceCents: balances.get(currentUserId) ?? 0,
       settlePlan: plan,
       isCreator: g.createdBy === currentUserId,
-      openProposalsCount: 0,
+      openProposalsCount: proposals.filter(p => !p.isCommitted).length,
     }
   }, [selectedGroupId, allGroupsRaw, currentUserId])
 
@@ -304,6 +329,7 @@ export function GroupsListShell({
                 members={selectedDetail.members}
                 guests={selectedDetail.guests}
                 activity={selectedDetail.activity}
+                proposals={selectedDetail.proposals}
                 currentUserId={currentUserId}
                 isCreator={selectedDetail.isCreator}
                 savedTogetherCents={selectedDetail.savedTogetherCents}

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useTransition } from 'react'
-import { Bell, Users } from 'lucide-react'
+import { Bell, Users, ShoppingBag } from 'lucide-react'
 import { getCoolingStatus } from '@/core/cooling/coolingState'
 import { fmtRM } from '@/lib/formatters'
 import { useTick } from '@/lib/use-tick'
@@ -21,12 +21,23 @@ export interface PendingInvite {
   memberCount: number
 }
 
+export interface GroupExpenseNotif {
+  id: string
+  description: string
+  amountCents: number
+  payerName: string
+  groupId: string
+  groupName: string
+  createdAt: Date
+}
+
 interface Props {
   items: CoolingItem[]
   invites: PendingInvite[]
+  groupExpenses: GroupExpenseNotif[]
 }
 
-export function NotificationBell({ items, invites }: Props) {
+export function NotificationBell({ items, invites, groupExpenses }: Props) {
   const [open, setOpen] = useState(false)
   const now = useTick(30_000)
   const resolveSheet = useResolveSheet()
@@ -50,7 +61,7 @@ export function NotificationBell({ items, invites }: Props) {
     i => getCoolingStatus({ status: 'COOLING', coolingUntil: i.coolingUntil }, now) === 'READY_TO_RESOLVE',
   )
 
-  const totalCount = ready.length + invites.length
+  const totalCount = ready.length + invites.length + groupExpenses.length
 
   function handleClick(id: string) {
     setOpen(false)
@@ -154,6 +165,40 @@ export function NotificationBell({ items, invites }: Props) {
                       </li>
                     )
                   })}
+                </ul>
+              </>
+            )}
+
+            {groupExpenses.length > 0 && (
+              <>
+                <p className="px-4 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Group activity
+                </p>
+                <ul className="pb-1">
+                  {groupExpenses.map(exp => (
+                    <li key={exp.id} className="border-b border-sep last:border-b-0">
+                      <a
+                        href={`/groups/${exp.groupId}`}
+                        onClick={() => setOpen(false)}
+                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted transition-colors text-left"
+                      >
+                        <div className="flex-shrink-0 w-9 h-9 rounded-sm bg-coral-tint flex items-center justify-center text-coral-deep">
+                          <ShoppingBag size={15} strokeWidth={1.8} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-foreground truncate">
+                            {exp.description}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground truncate">
+                            {exp.payerName} · {exp.groupName}
+                          </p>
+                        </div>
+                        <span className="flex-shrink-0 text-xs font-semibold text-foreground tabular-nums">
+                          {fmtRM(exp.amountCents, 0)}
+                        </span>
+                      </a>
+                    </li>
+                  ))}
                 </ul>
               </>
             )}

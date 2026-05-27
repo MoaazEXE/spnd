@@ -19,7 +19,7 @@ export function NextMilestonePill({ milestone: m, unlockedCount, totalCount }: P
 
   return (
     <Link
-      href="/profile"
+      href="/profile#milestones"
       className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-card border border-sep shadow-card hover:shadow-pop transition-shadow group"
     >
       <div

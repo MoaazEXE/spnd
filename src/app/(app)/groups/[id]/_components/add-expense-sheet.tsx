@@ -151,7 +151,7 @@ export function AddExpenseSheet({ groupId, members, guests, onClose, onExpenseAd
               type="number"
               inputMode="decimal"
               min="0"
-              step="1"
+              step="0.01"
               placeholder="0"
               required
               onChange={e =>

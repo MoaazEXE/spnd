@@ -187,7 +187,7 @@ export function EditExpenseSheet({
                 type="number"
                 inputMode="decimal"
                 min="0"
-                step="1"
+                step="0.01"
                 required
                 defaultValue={(initialAmountCents / 100).toString()}
                 onChange={e =>

@@ -29,7 +29,7 @@ export default async function ResplitAllPage({ params }: PageProps) {
   const memberIds = group.members.map(m => m.userId)
   const guestMembers = group.guestMembers
   const totalPeople = memberIds.length + guestMembers.length
-  const splitExpenses = group.expenses.filter(e => e.description !== 'Settlement')
+  const splitExpenses = group.expenses.filter(e => !e.description.startsWith('Settlement'))
 
   // Current balances (uses real shares as stored).
   const currentBalances = computeBalances(group.expenses)
@@ -37,7 +37,7 @@ export default async function ResplitAllPage({ params }: PageProps) {
   // Projected: replace each split expense's shares with an equal split across
   // all current members + guests. Settlements stay as-is.
   const projectedExpenses = group.expenses.map(e => {
-    if (e.description === 'Settlement') return e
+    if (e.description.startsWith('Settlement')) return e
     const base = Math.floor(e.amountCents / totalPeople)
     const remainder = e.amountCents - base * totalPeople
     const memberShares = memberIds.map(uid => ({

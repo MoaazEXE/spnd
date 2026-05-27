@@ -102,7 +102,7 @@ export function ProposalCard({ proposal, currentUserId }: Props) {
               'bg-muted text-muted-foreground',
             )}
           >
-            <Avatar name={r.userName} size={28} />
+            <Avatar name={r.userName} src={r.avatarUrl} size={28} />
           </div>
         ))}
         <span className="ml-1 text-[11px] text-muted-foreground">

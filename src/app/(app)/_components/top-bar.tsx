@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Search, Plus } from 'lucide-react'
-import { NotificationBell, type PendingInvite } from './notification-bell'
+import { NotificationBell, type PendingInvite, type GroupExpenseNotif } from './notification-bell'
 import { SearchPalette } from './search-palette'
 import { useLogModal } from './log-modal-context'
 import { BrandMark } from '@/components/ui/brand-mark'
@@ -18,11 +18,12 @@ interface CoolingItem {
 interface Props {
   coolingItems: CoolingItem[]
   invites: PendingInvite[]
+  groupExpenses: GroupExpenseNotif[]
   userInitial: string
   userAvatarUrl?: string | null
 }
 
-export function TopBar({ coolingItems, invites, userInitial, userAvatarUrl }: Props) {
+export function TopBar({ coolingItems, invites, groupExpenses, userInitial, userAvatarUrl }: Props) {
   const [searchOpen, setSearchOpen] = useState(false)
   const log = useLogModal()
 
@@ -64,7 +65,7 @@ export function TopBar({ coolingItems, invites, userInitial, userAvatarUrl }: Pr
           <Search size={18} strokeWidth={1.8} className="text-muted-foreground" />
         </button>
 
-        <NotificationBell items={coolingItems} invites={invites} />
+        <NotificationBell items={coolingItems} invites={invites} groupExpenses={groupExpenses} />
 
         <button
           onClick={log.open}

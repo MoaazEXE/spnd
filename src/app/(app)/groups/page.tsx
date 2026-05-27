@@ -46,6 +46,16 @@ export interface RawGroupForShell {
     guestShares: { shareCents: number; guest: { addedBy: string; name: string } }[]
     payer: { id: string; name: string; avatarUrl: string | null }
   }[]
+  proposals: {
+    id: string
+    description: string
+    amountCents: number
+    payerId: string
+    payerName: string
+    coolingUntil: string
+    status: string
+    shares: { userId: string; userName: string; avatarUrl: string | null; reaction: string | null }[]
+  }[]
   items: { amountCents: number }[]
 }
 
@@ -53,12 +63,12 @@ export default async function GroupsPage() {
   const ctx = await getUserContext()
   if (!ctx) redirect('/login')
 
-  // Single DB round-trip: findManyByUserDeep fetches everything needed,
-  // including full expense/member/share data for the right-panel detail view.
   const [groups, pendingInvites] = await Promise.all([
     groupsRepo.findManyByUserDeep(ctx.id),
     groupsRepo.findPendingInvitesByUser(ctx.id),
   ])
+  const groupIds = groups.map(g => g.id)
+  const allProposals = await groupsRepo.findProposalsForGroups(groupIds)
 
   const invites: InvitePreview[] = pendingInvites.map(inv => ({
     groupId: inv.groupId,
@@ -112,6 +122,23 @@ export default async function GroupsPage() {
       })),
       payer: { id: e.payer.id, name: e.payer.name, avatarUrl: e.payer.avatarUrl },
     })),
+    proposals: allProposals
+      .filter(p => p.groupId === g.id)
+      .map(p => ({
+        id: p.id,
+        description: p.description,
+        amountCents: p.amountCents,
+        payerId: p.payerId,
+        payerName: p.payer.name,
+        coolingUntil: p.coolingUntil ? new Date(p.coolingUntil).toISOString() : new Date().toISOString(),
+        status: p.status,
+        shares: p.shares.map(s => ({
+          userId: s.userId,
+          userName: s.user.name,
+          avatarUrl: s.user.avatarUrl ?? null,
+          reaction: s.reaction ?? null,
+        })),
+      })),
     items: g.items.map(i => ({ amountCents: i.amountCents })),
   }))
 
