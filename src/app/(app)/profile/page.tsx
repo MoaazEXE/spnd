@@ -112,6 +112,8 @@ export default async function ProfilePage() {
       email={ctx.email}
       initial={ctx.initial}
       avatarUrl={dbUser?.avatarUrl ?? null}
+      username={ctx.username}
+      usernameUpdatedAt={ctx.usernameUpdatedAt}
       memberSince={dbUser?.createdAt ? new Date(dbUser.createdAt) : new Date()}
       savedCents={summary.totalCents}
       skippedCount={skippedItems.length}

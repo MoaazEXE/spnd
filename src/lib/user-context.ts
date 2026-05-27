@@ -1,4 +1,5 @@
 import { cache } from 'react'
+import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/supabase/server'
 import { usersRepo } from '@/data/users.repo'
 import type { TimeCostInput } from '@/types'
@@ -11,6 +12,8 @@ export interface UserContext {
   email: string
   initial: string
   avatarUrl: string | null
+  username: string | null
+  usernameUpdatedAt: Date | null
   defaultCoolingPeriod: string
   currency: string
   timeCostContext: TimeCostContext | null
@@ -48,8 +51,22 @@ export const getUserContext = cache(async (): Promise<UserContext | null> => {
     email: authUser.email ?? '',
     initial: (name || '?').charAt(0).toUpperCase(),
     avatarUrl: dbUser?.avatarUrl ?? null,
+    username: dbUser?.username ?? null,
+    usernameUpdatedAt: dbUser?.usernameUpdatedAt ?? null,
     defaultCoolingPeriod: dbUser?.defaultCoolingPeriod ?? '1d',
     currency: dbUser?.currency ?? 'MYR',
     timeCostContext,
   }
 })
+
+/**
+ * Redirect to /onboarding if the user hasn't completed the onboarding flow.
+ * Call this inside protected server components when you need a per-page gate
+ * in addition to the layout-level check.
+ */
+export async function requireOnboardingComplete(): Promise<void> {
+  const authUser = await getCurrentUser()
+  if (!authUser) return
+  const dbUser = await usersRepo.findById(authUser.id)
+  if (!dbUser?.onboardingCompletedAt) redirect('/onboarding')
+}

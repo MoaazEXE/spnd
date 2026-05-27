@@ -1,8 +1,10 @@
 'use server'
 
+import { redirect } from 'next/navigation'
 import { updateTag } from 'next/cache'
 import { getCurrentUser } from '@/lib/supabase/server'
 import { usersRepo } from '@/data/users.repo'
+import { prisma } from '@/lib/prisma'
 import {
   getCents,
   getOptionalNumber,
@@ -11,7 +13,8 @@ import {
   ValidationError,
   withValidation,
 } from '@/lib/form-data'
-import { guard } from '@/lib/rate-limit'
+import { guard, consume } from '@/lib/rate-limit'
+import { validateUsername, normalizeUsername } from '@/lib/username'
 import type { TimeCostMode } from '@/types'
 import { CURRENCIES, type CurrencyCode } from '@/lib/formatters'
 
@@ -100,6 +103,102 @@ export async function updateNotificationPrefs(formData: FormData): Promise<void>
   })
 
   updateTag(`user-${user.id}`)
+}
+
+export async function checkUsernameAvailable(username: string): Promise<{ available: boolean; reason?: string }> {
+  const normalized = normalizeUsername(username)
+  const validation = validateUsername(normalized)
+  if (!validation.ok) return { available: false, reason: validation.reason }
+  const existing = await usersRepo.findByUsername(normalized)
+  if (existing) return { available: false, reason: 'Username is already taken.' }
+  return { available: true }
+}
+
+export async function completeOnboarding(
+  _prevState: string | null,
+  formData: FormData,
+): Promise<string | null> {
+  const result = await withValidation(async () => {
+    const user = await getCurrentUser()
+    if (!user) throw new ValidationError('Unauthorized')
+
+    const dbUser = await usersRepo.findById(user.id)
+    if (dbUser?.onboardingCompletedAt) redirect('/dashboard')
+
+    const rawUsername = getRequiredString(formData, 'username')
+    const username = normalizeUsername(rawUsername)
+    const validation = validateUsername(username)
+    if (!validation.ok) throw new ValidationError(validation.reason)
+
+    // Race-condition guard: re-check availability at submit time
+    const existing = await usersRepo.findByUsername(username)
+    if (existing && existing.id !== user.id) throw new ValidationError('Username was just taken — please choose another.')
+
+    const currency = getString(formData, 'currency') ?? 'MYR'
+    if (!VALID_CURRENCIES.has(currency)) throw new ValidationError('Invalid currency.')
+
+    const monthlyIncomeCents = getCents(formData, 'monthlyIncome')
+    const workingHoursPerWeek = getOptionalNumber(formData, 'weeklyHours')
+
+    if (monthlyIncomeCents !== null && monthlyIncomeCents <= 0) {
+      throw new ValidationError('Income must be a positive number.')
+    }
+    if (workingHoursPerWeek !== null && workingHoursPerWeek <= 0) {
+      throw new ValidationError('Working hours must be a positive number.')
+    }
+
+    await usersRepo.completeOnboarding(user.id, {
+      username,
+      currency,
+      monthlyIncomeCents,
+      workingHoursPerWeek,
+    })
+
+    updateTag(`user-${user.id}`)
+  })
+
+  if (typeof result === 'string') return result
+  redirect('/dashboard')
+}
+
+export async function updateUsername(
+  _prevState: string | null,
+  formData: FormData,
+): Promise<string | null> {
+  const result = await withValidation(async () => {
+    const user = await getCurrentUser()
+    if (!user) throw new ValidationError('Unauthorized')
+
+    const dbUser = await usersRepo.findById(user.id)
+    if (!dbUser) throw new ValidationError('User not found.')
+
+    // 24-hour cooldown
+    if (dbUser.usernameUpdatedAt) {
+      const msSince = Date.now() - dbUser.usernameUpdatedAt.getTime()
+      const msLeft = 24 * 60 * 60 * 1000 - msSince
+      if (msLeft > 0) {
+        const hLeft = Math.ceil(msLeft / 3600000)
+        throw new ValidationError(`You can change your username again in ${hLeft} hour${hLeft === 1 ? '' : 's'}.`)
+      }
+    }
+
+    const rawUsername = getRequiredString(formData, 'username')
+    const username = normalizeUsername(rawUsername)
+    const validation = validateUsername(username)
+    if (!validation.ok) throw new ValidationError(validation.reason)
+
+    if (username === dbUser.usernameLower) throw new ValidationError('That is already your username.')
+
+    await consume(`updateUsername:${user.id}`, 5, 3600)
+
+    const existing = await usersRepo.findByUsername(username)
+    if (existing) throw new ValidationError('Username is already taken.')
+
+    await usersRepo.updateUsername(user.id, username)
+    updateTag(`user-${user.id}`)
+  })
+
+  return typeof result === 'string' ? result : null
 }
 
 export async function saveIncomeSettings(

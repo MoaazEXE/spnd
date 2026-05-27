@@ -22,6 +22,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { MilestoneCard } from '@/components/milestones/milestone-card'
 import { cn, toDate } from '@/lib/utils'
 import { EditProfileSheet } from './edit-profile-sheet'
+import { EditUsernameDialog } from './edit-username-dialog'
 import type { MilestoneResult } from '@/core/milestones/milestones'
 
 interface ActivityItem {
@@ -44,6 +45,8 @@ interface Props {
   email: string
   initial: string
   avatarUrl: string | null
+  username: string | null
+  usernameUpdatedAt: Date | null
   memberSince: Date | string
   savedCents: number
   skippedCount: number
@@ -95,6 +98,8 @@ export function ProfileShell({
   email,
   initial,
   avatarUrl,
+  username,
+  usernameUpdatedAt,
   memberSince,
   savedCents,
   skippedCount,
@@ -118,6 +123,7 @@ export function ProfileShell({
   recentActivity,
 }: Props) {
   const [editing, setEditing] = useState(false)
+  const [editingUsername, setEditingUsername] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
@@ -207,6 +213,16 @@ export function ProfileShell({
                     </span>
                   )}
                 </div>
+                {username && (
+                  <button
+                    type="button"
+                    onClick={() => setEditingUsername(true)}
+                    className="inline-flex items-center gap-1.5 mt-1.5 text-sm text-white/60 hover:text-white/90 transition-colors group"
+                  >
+                    <span>@{username}</span>
+                    <Pencil size={11} strokeWidth={2} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </button>
+                )}
 
                 <div className="hidden lg:flex items-center gap-4 mt-4 text-label text-white/65 flex-wrap">
                   <span className="inline-flex items-center gap-1.5">
@@ -588,6 +604,14 @@ export function ProfileShell({
           </div>
         </div>
       </div>
+
+      {editingUsername && (
+        <EditUsernameDialog
+          currentUsername={username}
+          usernameUpdatedAt={usernameUpdatedAt}
+          onClose={() => setEditingUsername(false)}
+        />
+      )}
 
       {editing && (
         <EditProfileSheet

@@ -4,7 +4,7 @@ import { useActionState, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { UserPlus } from 'lucide-react'
-import { inviteMemberByEmail, addGuestMember } from '@/app/actions/groups'
+import { inviteMember, addGuestMember } from '@/app/actions/groups'
 import { ErrorBanner } from '@/components/ui/error-banner'
 import { SheetFrame } from '@/components/ui/sheet-frame'
 import { cn } from '@/lib/utils'
@@ -18,10 +18,10 @@ interface Props {
 export function AddMemberSheet({ groupId, initialMode = 'invite', onClose }: Props) {
   const router = useRouter()
   const [mode, setMode] = useState<'invite' | 'guest'>(initialMode)
-  const [email, setEmail] = useState('')
+  const [identifier, setIdentifier] = useState('')
   const [guestName, setGuestName] = useState('')
 
-  const [inviteError, inviteAction, invitePending] = useActionState(inviteMemberByEmail, null)
+  const [inviteError, inviteAction, invitePending] = useActionState(inviteMember, null)
   const [guestError, guestAction, guestPending] = useActionState(addGuestMember, null)
 
   const wasInvitePending = useRef(false)
@@ -30,13 +30,13 @@ export function AddMemberSheet({ groupId, initialMode = 'invite', onClose }: Pro
   useEffect(() => {
     if (wasInvitePending.current && !invitePending && inviteError === null) {
       toast.success('Invite sent', {
-        description: `${email} will see it in their notifications.`,
+        description: `${identifier} will see it in their notifications.`,
       })
       router.refresh()
       onClose()
     }
     wasInvitePending.current = invitePending
-  }, [invitePending, inviteError, onClose, email, router])
+  }, [invitePending, inviteError, onClose, identifier, router])
 
   useEffect(() => {
     if (wasGuestPending.current && !guestPending && guestError === null) {
@@ -49,7 +49,7 @@ export function AddMemberSheet({ groupId, initialMode = 'invite', onClose }: Pro
 
   const isPending = invitePending || guestPending
   const canSubmit =
-    mode === 'invite' ? email.trim().length > 0 : guestName.trim().length > 0
+    mode === 'invite' ? identifier.trim().length > 0 : guestName.trim().length > 0
 
   return (
     <SheetFrame
@@ -79,7 +79,7 @@ export function AddMemberSheet({ groupId, initialMode = 'invite', onClose }: Pro
                 : 'text-muted-foreground hover:text-foreground',
             )}
           >
-            By email
+            By email / username
           </button>
           <button
             type="button"
@@ -103,19 +103,19 @@ export function AddMemberSheet({ groupId, initialMode = 'invite', onClose }: Pro
             </p>
             <div className="space-y-2">
               <label
-                htmlFor="member-email"
+                htmlFor="member-identifier"
                 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
               >
-                Their email
+                Email or @username
               </label>
               <input
-                id="member-email"
-                name="email"
-                type="email"
+                id="member-identifier"
+                name="identifier"
+                type="text"
                 required
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="friend@example.com"
+                value={identifier}
+                onChange={e => setIdentifier(e.target.value)}
+                placeholder="friend@example.com or @username"
                 autoFocus
                 className="w-full h-13 px-4 rounded-lg bg-background border border-border text-base font-medium text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
               />

@@ -15,6 +15,8 @@ import {
   withValidation,
 } from '@/lib/form-data'
 import { guard } from '@/lib/rate-limit'
+import { normalizeUsername } from '@/lib/username'
+import { usersRepo } from '@/data/users.repo'
 
 async function getAuthUserId(): Promise<string> {
   const user = await getCurrentUser()
@@ -74,7 +76,7 @@ export async function createGroup(
   return null
 }
 
-export async function inviteMemberByEmail(
+export async function inviteMember(
   _prevState: string | null,
   formData: FormData,
 ): Promise<string | null> {
@@ -82,17 +84,31 @@ export async function inviteMemberByEmail(
   let actingUserId: string | null = null
   const result = await withValidation(async () => {
     const groupId = getRequiredString(formData, 'groupId')
-    const email = getRequiredString(formData, 'email').toLowerCase()
+    const identifier = getRequiredString(formData, 'identifier').trim()
     actingUserId = await getAuthUserId()
     await guard(`invite:${actingUserId}`, 10, 60)
     await requireActiveMembership(groupId, actingUserId)
 
-    const invitee = await prisma.user.findUnique({ where: { email } })
-    if (!invitee) {
-      throw new ValidationError(
-        "We can't find anyone with that email yet. Ask them to sign up first.",
-      )
+    // Support @username or email lookup
+    let invitee: { id: string } | null = null
+    if (identifier.startsWith('@')) {
+      const usernameLower = normalizeUsername(identifier.slice(1))
+      invitee = await usersRepo.findByUsername(usernameLower)
+      if (!invitee) {
+        throw new ValidationError(
+          "We can't find anyone with that username. Ask them to sign up first.",
+        )
+      }
+    } else {
+      const email = identifier.toLowerCase()
+      invitee = await prisma.user.findUnique({ where: { email } })
+      if (!invitee) {
+        throw new ValidationError(
+          "We can't find anyone with that email. Ask them to sign up first.",
+        )
+      }
     }
+
     if (invitee.id === actingUserId) {
       throw new ValidationError("You're already in this group.")
     }

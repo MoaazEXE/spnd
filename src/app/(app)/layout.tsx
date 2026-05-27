@@ -31,9 +31,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       ? (user.user_metadata.name as string)
       : user.email?.split('@')[0] ?? 'You'
 
-  // Read currency for provider — cheap cached call
+  // Read DB row for currency + onboarding gate
   const dbUser = await usersRepo.findById(user.id)
-  const currency = dbUser?.currency ?? 'MYR'
+  if (!dbUser?.onboardingCompletedAt) redirect('/onboarding')
+  const currency = dbUser.currency
 
   return (
     <CurrencyProvider currency={currency}>

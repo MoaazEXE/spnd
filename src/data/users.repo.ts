@@ -14,6 +14,44 @@ const findByIdCached = cache(async (id: string) =>
 export const usersRepo = {
   findById: findByIdCached,
 
+  async findByUsername(usernameLower: string) {
+    return prisma.user.findUnique({ where: { usernameLower } })
+  },
+
+  async completeOnboarding(
+    id: string,
+    data: {
+      username: string
+      currency: string
+      monthlyIncomeCents: number | null
+      workingHoursPerWeek: number | null
+    },
+  ) {
+    return prisma.user.update({
+      where: { id },
+      data: {
+        username: data.username,
+        usernameLower: data.username.toLowerCase(),
+        usernameUpdatedAt: new Date(),
+        currency: data.currency,
+        monthlyIncomeCents: data.monthlyIncomeCents,
+        workingHoursPerWeek: data.workingHoursPerWeek,
+        onboardingCompletedAt: new Date(),
+      },
+    })
+  },
+
+  async updateUsername(id: string, username: string) {
+    return prisma.user.update({
+      where: { id },
+      data: {
+        username,
+        usernameLower: username.toLowerCase(),
+        usernameUpdatedAt: new Date(),
+      },
+    })
+  },
+
   async updateIncome(
     id: string,
     data: {
