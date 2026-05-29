@@ -27,7 +27,7 @@ export async function GET() {
     if (!csvOk) return new NextResponse('Too many export requests — try again later.', { status: 429 })
 
     const LIMIT = 10_000
-    const [items, expenses] = await Promise.all([
+    const [items, expenses, dbUser] = await Promise.all([
       prisma.item.findMany({
         where: { userId: user.id },
         orderBy: { createdAt: 'desc' },
@@ -41,12 +41,15 @@ export async function GET() {
         orderBy: { createdAt: 'desc' },
         take: LIMIT,
       }),
+      prisma.user.findUnique({ where: { id: user.id }, select: { currency: true } }),
     ])
+
+    const currencyCode = dbUser?.currency ?? 'MYR'
 
     const lines: string[] = []
 
     lines.push('TEMPTATIONS')
-    lines.push(row('Title', 'Amount (RM)', 'Category', 'Status', 'Cooling until', 'Resolved at', 'Created at'))
+    lines.push(row('Title', `Amount (${currencyCode})`, 'Category', 'Status', 'Cooling until', 'Resolved at', 'Created at'))
     for (const i of items) {
       lines.push(row(
         i.title,
@@ -61,7 +64,7 @@ export async function GET() {
 
     lines.push('')
     lines.push('GROUP EXPENSES')
-    lines.push(row('Group', 'Description', 'Amount (RM)', 'Type', 'Status', 'Created at'))
+    lines.push(row('Group', 'Description', `Amount (${currencyCode})`, 'Type', 'Status', 'Created at'))
     for (const e of expenses) {
       lines.push(row(
         e.group.name,

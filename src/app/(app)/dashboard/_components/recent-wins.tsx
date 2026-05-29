@@ -5,7 +5,8 @@ import { X, Pencil, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { editWin } from '@/app/actions/items'
-import { fmtRM } from '@/lib/formatters'
+import { fmtCurrency, CURRENCIES } from '@/lib/formatters'
+import { useCurrency } from '@/lib/currency-context'
 import { Card } from '@/components/ui/card'
 import { ErrorBanner } from '@/components/ui/error-banner'
 import { cn, toDate } from '@/lib/utils'
@@ -68,6 +69,8 @@ function EditSheet({ item, onClose }: { item: WinItem; onClose: () => void }) {
   const [outcome, setOutcome] = useState<'SKIPPED' | 'BOUGHT'>(item.status)
   const [title, setTitle] = useState(item.title)
   const [amount, setAmount] = useState(String(item.amountCents / 100))
+  const currency = useCurrency()
+  const currencySymbol = CURRENCIES.find(c => c.code === currency)?.symbol ?? currency
   const [fieldError, setFieldError] = useState<string | null>(null)
 
   function handleSave() {
@@ -138,7 +141,7 @@ function EditSheet({ item, onClose }: { item: WinItem; onClose: () => void }) {
             </p>
             <div className="flex items-baseline justify-center gap-1">
               <span className="text-2xl font-semibold text-muted-foreground tracking-tight">
-                RM
+                {currencySymbol}
               </span>
               <input
                 type="number"
@@ -248,6 +251,7 @@ function OutcomeButton({
 
 export function RecentWins({ skippedItems, boughtItems, maxItems = 3 }: Props) {
   const [editItem, setEditItem] = useState<WinItem | null>(null)
+  const currency = useCurrency()
 
   const recentSkipped = skippedItems.slice(0, maxItems)
   const recentBought = boughtItems.slice(0, 2)
@@ -311,7 +315,7 @@ export function RecentWins({ skippedItems, boughtItems, maxItems = 3 }: Props) {
                   )}
                 >
                   {isSaved ? '+' : ''}
-                  {fmtRM(item.amountCents, 0)}
+                  {fmtCurrency(item.amountCents, currency, 0)}
                 </span>
                 <Pencil size={13} className="text-subtle-foreground" />
               </div>

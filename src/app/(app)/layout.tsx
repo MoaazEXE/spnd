@@ -20,16 +20,14 @@ import { LogFab } from './_components/log-fab'
  */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser()
-  if (!user) redirect('/login')
-
-  const initial =
-    typeof user.user_metadata?.name === 'string'
-      ? (user.user_metadata.name as string).charAt(0).toUpperCase()
-      : (user.email ?? 'U').charAt(0).toUpperCase()
-  const name =
-    typeof user.user_metadata?.name === 'string'
-      ? (user.user_metadata.name as string)
-      : user.email?.split('@')[0] ?? 'You'
+  if (!user) {
+    // Clear stale session cookie — if the cookie exists but the session is invalid,
+    // the proxy would loop: /login → /dashboard → /login → ... endlessly.
+    const { createClient } = await import('@/lib/supabase/server')
+    const supabase = await createClient()
+    await supabase.auth.signOut()
+    redirect('/login')
+  }
 
   // Read DB row for currency + onboarding gate
   const dbUser = await usersRepo.findById(user.id)
@@ -40,6 +38,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     await supabase.auth.signOut()
     redirect('/login')
   }
+
+  // Prefer DB name (user-editable) over OAuth metadata (overwritten by Google on each login)
+  const metaName = typeof user.user_metadata?.name === 'string' ? user.user_metadata.name : null
+  const name = dbUser.name ?? metaName ?? user.email?.split('@')[0] ?? 'You'
+  const initial = name.charAt(0).toUpperCase()
   // Users created before the onboarding feature launched are grandfathered in.
   // Only redirect new users (created after the launch date) who haven't completed it.
   const ONBOARDING_LAUNCH = new Date('2026-05-27T00:00:00Z')

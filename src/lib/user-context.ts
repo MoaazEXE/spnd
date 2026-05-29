@@ -32,7 +32,8 @@ export const getUserContext = cache(async (): Promise<UserContext | null> => {
     typeof authUser.user_metadata?.name === 'string'
       ? (authUser.user_metadata.name as string)
       : null
-  const name = metadataName ?? authUser.email?.split('@')[0] ?? 'You'
+  // Prefer DB name (user-editable) over OAuth metadata (overwritten by Google on each login)
+  const name = dbUser?.name ?? metadataName ?? authUser.email?.split('@')[0] ?? 'You'
 
   const timeCostContext: TimeCostContext | null =
     dbUser?.monthlyIncomeCents && dbUser.workingHoursPerWeek

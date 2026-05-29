@@ -3,8 +3,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { BrandMark } from '@/components/ui/brand-mark'
 import { Plus, Clock, Check, Users } from 'lucide-react'
-import { signInWithGoogle } from '@/app/actions/oauth'
-import { GoogleIcon } from '@/components/ui/google-icon'
+import { LandingCta } from '@/app/_components/landing-cta'
 
 export default async function Home() {
   const supabase = await createClient()
@@ -63,39 +62,19 @@ export default async function Home() {
           </div>
         </div>
 
-        <div className="mt-10 lg:mt-12 space-y-4">
-          <Link
-            href="/signup"
-            prefetch
-            className="block w-full h-14 lg:h-16 rounded-2xl bg-primary text-primary-foreground text-base lg:text-lg font-semibold flex items-center justify-center transition-all active:scale-[0.98] hover:bg-primary-deep"
+        <LandingCta />
+
+        <footer className="mt-8 text-center text-xs text-subtle-foreground">
+          Made with love by{' '}
+          <a
+            href="https://moaazexe.dev"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 hover:text-muted-foreground transition-colors"
           >
-            Create account
-          </Link>
-
-          <form action={signInWithGoogle}>
-            <button
-              type="submit"
-              className="w-full h-14 lg:h-16 rounded-2xl bg-background border border-border text-foreground text-base lg:text-lg font-semibold flex items-center justify-center gap-3 transition-colors hover:bg-muted active:scale-[0.98]"
-            >
-              <GoogleIcon />
-              Continue with Google
-            </button>
-          </form>
-
-          <p className="text-center text-sm text-muted-foreground pt-1">
-            Have an account?{' '}
-            <Link href="/login" prefetch className="font-semibold text-primary hover:underline">
-              Log in
-            </Link>
-          </p>
-          <p className="text-center text-xs text-subtle-foreground">
-            By creating an account, you agree to our{' '}
-            <Link href="/privacy" prefetch className="underline underline-offset-2 hover:text-muted-foreground transition-colors">
-              Privacy Policy
-            </Link>
-            .
-          </p>
-        </div>
+            Moaaz
+          </a>
+        </footer>
       </div>
     </main>
   )

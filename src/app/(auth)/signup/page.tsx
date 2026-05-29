@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useEffect } from 'react'
+import { useActionState, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { signUp } from '@/app/actions/auth'
 import { Input } from '@/components/ui/input'
@@ -39,6 +39,7 @@ function CheckEmailScreen() {
 
 export default function SignupPage() {
   const [state, action, isPending] = useActionState(signUp, null)
+  const [agreed, setAgreed] = useState(false)
 
   useEffect(() => {
     function onPageShow(e: PageTransitionEvent) {
@@ -64,7 +65,22 @@ export default function SignupPage() {
         description="Log temptations, wait them out, and watch what you save."
       />
 
-      <GoogleSignInButton />
+      <label className="flex items-start gap-2.5 cursor-pointer mb-4">
+        <input
+          type="checkbox"
+          checked={agreed}
+          onChange={e => setAgreed(e.target.checked)}
+          className="mt-0.5 h-4 w-4 shrink-0 rounded border border-border accent-primary cursor-pointer"
+        />
+        <span className="text-xs text-subtle-foreground leading-relaxed">
+          I agree to the{' '}
+          <Link href="/privacy" prefetch className="underline underline-offset-2 hover:text-muted-foreground transition-colors">
+            Privacy Policy
+          </Link>
+        </span>
+      </label>
+
+      <GoogleSignInButton disabled={!agreed} />
 
       <Divider label="or sign up with email" />
 
@@ -80,16 +96,9 @@ export default function SignupPage() {
           placeholder="Password (8+ characters)"
         />
         <ErrorBanner message={state && state !== 'check-email' ? state : null} />
-        <SubmitButton pending={isPending} pendingLabel="Creating account…">
+        <SubmitButton pending={isPending} pendingLabel="Creating account…" disabled={!agreed}>
           Create account
         </SubmitButton>
-        <p className="text-center text-xs text-subtle-foreground">
-          By creating an account, you agree to our{' '}
-          <Link href="/privacy" prefetch className="underline underline-offset-2 hover:text-muted-foreground transition-colors">
-            Privacy Policy
-          </Link>
-          .
-        </p>
       </form>
 
       <p className="mt-6 text-center text-sm text-muted-foreground">

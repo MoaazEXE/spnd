@@ -5,7 +5,8 @@ import { toast } from 'sonner'
 import { resolveItem, snoozeItem, editCoolingItem } from '@/app/actions/items'
 import { useResolveSheet } from '@/app/(app)/_components/resolve-sheet-context'
 import { CATEGORIES } from '@/core/categories/categories'
-import { fmtRM } from '@/lib/formatters'
+import { fmtCurrency, CURRENCIES } from '@/lib/formatters'
+import { useCurrency } from '@/lib/currency-context'
 import { SheetFrame } from '@/components/ui/sheet-frame'
 import { ErrorBanner } from '@/components/ui/error-banner'
 import { cn } from '@/lib/utils'
@@ -45,6 +46,8 @@ interface Props {
 export function ResolveSheet({ item, onClose, onSkipped }: Props) {
   const [pending, startTransition] = useTransition()
   const [mode, setMode] = useState<Mode>('resolve')
+  const currency = useCurrency()
+  const currencySymbol = CURRENCIES.find(c => c.code === currency)?.symbol ?? currency
   const { markResolved } = useResolveSheet()
 
   function handleBuy() {
@@ -82,7 +85,7 @@ export function ResolveSheet({ item, onClose, onSkipped }: Props) {
           <div className="mb-6 text-center">
             <p className="text-xl font-bold text-foreground tracking-tight">{item.title}</p>
             <p className="mt-1 text-3xl font-bold text-primary tabular-nums leading-tight tracking-tight">
-              {fmtRM(item.amountCents)}
+              {fmtCurrency(item.amountCents, currency)}
             </p>
             {item.timeCostFormatted && (
               <p className="mt-1.5 text-sm text-muted-foreground">
@@ -188,6 +191,8 @@ function EditCoolingForm({
   const [error, action, isPending] = useActionState(editCoolingItem, null)
   const [title, setTitle] = useState(item.title)
   const [category, setCategory] = useState(item.category ?? 'other')
+  const currency = useCurrency()
+  const currencySymbol = CURRENCIES.find(c => c.code === currency)?.symbol ?? currency
   const [selectedPreset, setSelectedPreset] = useState(3)
   const [isCustom, setIsCustom] = useState(false)
   const wasPending = useRef(false)
@@ -227,7 +232,7 @@ function EditCoolingForm({
           Amount
         </label>
         <div className="flex items-center gap-1.5 h-13 px-4 rounded-lg bg-background border border-border focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 transition-colors">
-          <span className="text-sm font-semibold text-muted-foreground">RM</span>
+          <span className="text-sm font-semibold text-muted-foreground">{currencySymbol}</span>
           <input
             name="amount"
             type="number"

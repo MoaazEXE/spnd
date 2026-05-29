@@ -4,6 +4,8 @@ import { useState } from 'react'
 import type { DailySavingsPoint } from '@/core/savings/savings'
 import { computeSavingsStreak, bestDailySavings } from '@/core/savings/savings'
 import { Card } from '@/components/ui/card'
+import { fmtCurrency } from '@/lib/formatters'
+import { useCurrency } from '@/lib/currency-context'
 
 interface Props {
   data: DailySavingsPoint[]
@@ -13,12 +15,9 @@ function fmtBarDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-MY', { month: 'short', day: 'numeric' })
 }
 
-function fmtRMShort(cents: number): string {
-  return `RM ${(cents / 100).toLocaleString('en-MY', { maximumFractionDigits: 0 })}`
-}
-
 export function DailySavesCard({ data }: Props) {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null)
+  const currency = useCurrency()
 
   const max = Math.max(...data.map(d => d.cents), 1)
   const streak = computeSavingsStreak(data)
@@ -134,7 +133,7 @@ export function DailySavesCard({ data }: Props) {
               </div>
               <div className="text-xs text-gold-tint tabular-nums">
                 {hover.cents > 0
-                  ? `RM ${(hover.cents / 100).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  ? fmtCurrency(hover.cents, currency)
                   : 'No saves'}
               </div>
             </div>
@@ -148,13 +147,13 @@ export function DailySavesCard({ data }: Props) {
             <span className="text-muted-foreground">
               Best day:{' '}
               <span className="font-semibold text-foreground tabular-nums">
-                {fmtRMShort(best.cents)}
+                {fmtCurrency(best.cents, currency, 0)}
               </span>
             </span>
           )}
           <span className="text-muted-foreground">
             30-day total:{' '}
-            <span className="font-semibold text-primary tabular-nums">{fmtRMShort(total)}</span>
+            <span className="font-semibold text-primary tabular-nums">{fmtCurrency(total, currency, 0)}</span>
           </span>
         </div>
       )}

@@ -15,6 +15,7 @@ interface Props {
   variant?: Variant
   pending?: boolean
   pendingLabel?: string
+  disabled?: boolean
   children: React.ReactNode
   className?: string
 }
@@ -23,13 +24,14 @@ export function SubmitButton({
   variant = 'secondary',
   pending,
   pendingLabel,
+  disabled,
   children,
   className,
 }: Props) {
   return (
     <button
       type="submit"
-      disabled={pending}
+      disabled={pending || disabled}
       className={cn(
         'w-full transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed',
         variantStyles[variant],

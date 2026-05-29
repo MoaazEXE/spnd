@@ -10,6 +10,8 @@ import { Card } from '@/components/ui/card'
 import { ErrorBanner } from '@/components/ui/error-banner'
 import { SheetFrame } from '@/components/ui/sheet-frame'
 import { cn } from '@/lib/utils'
+import { useCurrency } from '@/lib/currency-context'
+import { CURRENCIES } from '@/lib/formatters'
 import type { TimeCostInput } from '@/types'
 
 const PRESETS = [
@@ -48,6 +50,8 @@ const PRESET_MS = [
 
 export function LogSheet({ onClose, defaultCoolingPeriod, timeCostContext }: Props) {
   const [error, action, isPending] = useActionState(logItem, null)
+  const currency = useCurrency()
+  const currencySymbol = CURRENCIES.find(c => c.code === currency)?.symbol ?? currency
   const [amountCents, setAmountCents] = useState(0)
   const [title, setTitle] = useState('')
   const [selectedPreset, setSelectedPreset] = useState(() => presetIndexForStored(defaultCoolingPeriod))
@@ -103,7 +107,7 @@ export function LogSheet({ onClose, defaultCoolingPeriod, timeCostContext }: Pro
         <Card className="text-center" padding="md">
           <p className={cn(LABEL, 'mb-2')}>How much?</p>
           <div className="flex items-baseline justify-center gap-1">
-            <span className="text-2xl font-semibold text-muted-foreground tracking-tight">RM</span>
+            <span className="text-2xl font-semibold text-muted-foreground tracking-tight">{currencySymbol}</span>
             <input
               name="amount"
               type="number"

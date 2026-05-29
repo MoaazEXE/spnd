@@ -16,7 +16,7 @@ import {
 } from 'lucide-react'
 import { signOut, deleteAccount } from '@/app/actions/auth'
 import { updateNotificationPrefs } from '@/app/actions/users'
-import { fmtRM } from '@/lib/formatters'
+import { useFmt } from '@/lib/currency-context'
 import { Card } from '@/components/ui/card'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { MilestoneCard } from '@/components/milestones/milestone-card'
@@ -130,6 +130,7 @@ export function ProfileShell({
   const [notifyGroup, setNotifyGroup] = useState(initGroup)
   const [notifyMilestone, setNotifyMilestone] = useState(initMilestone)
   const [, startNotifTransition] = useTransition()
+  const fmt = useFmt()
 
   function saveNotifs(next: { cooling: boolean; group: boolean; milestone: boolean }) {
     const fd = new FormData()
@@ -306,13 +307,13 @@ export function ProfileShell({
               <Card padding="none">
                 <RecordRow
                   label="Biggest single skip"
-                  value={biggestSaveCents > 0 ? fmtRM(biggestSaveCents, 0) : '—'}
+                  value={biggestSaveCents > 0 ? fmt(biggestSaveCents, 0) : '—'}
                   caption={biggestSaveTitle}
                   accent="primary"
                 />
                 <RecordRow
                   label="Average save"
-                  value={avgSaveCents > 0 ? fmtRM(avgSaveCents, 0) : '—'}
+                  value={avgSaveCents > 0 ? fmt(avgSaveCents, 0) : '—'}
                   caption={`Across ${skippedCount} skipped items`}
                   accent="text"
                 />
@@ -393,7 +394,7 @@ export function ProfileShell({
                       Your last 90 days at a glance.
                     </p>
                     <div className="mt-3 grid grid-cols-3 gap-3">
-                      <QuarterCell label="Saved" value={fmtRM(quarterSavedCents, 0)} tone="primary" />
+                      <QuarterCell label="Saved" value={fmt(quarterSavedCents, 0)} tone="primary" />
                       <QuarterCell label="Skipped" value={String(quarterSkippedCount)} tone="text" />
                       <QuarterCell
                         label="vs prev"
@@ -478,7 +479,7 @@ export function ProfileShell({
                             {isSaved ? 'Skipped' : 'Bought'} {item.title}
                           </p>
                           <p className="text-xs text-muted-foreground mt-0.5">
-                            {isSaved ? 'Saved' : 'Spent'} {fmtRM(item.amountCents, 0)}
+                            {isSaved ? 'Saved' : 'Spent'} {fmt(item.amountCents, 0)}
                           </p>
                         </div>
                         <span className="text-[11px] text-subtle-foreground font-medium whitespace-nowrap">
@@ -595,6 +596,18 @@ export function ProfileShell({
           </div>
         </div>
       </div>
+
+      <footer className="mt-8 pb-2 text-center text-xs text-subtle-foreground">
+        Made with love by{' '}
+        <a
+          href="https://moaazexe.dev"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline underline-offset-2 hover:text-muted-foreground transition-colors"
+        >
+          Moaaz
+        </a>
+      </footer>
 
       {editing && (
         <EditProfileSheet

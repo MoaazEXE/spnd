@@ -4,7 +4,8 @@ import { useState, useTransition } from 'react'
 import { Check, ShoppingBag, X, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 import { editWin } from '@/app/actions/items'
-import { fmtRM } from '@/lib/formatters'
+import { fmtCurrency, CURRENCIES } from '@/lib/formatters'
+import { useCurrency } from '@/lib/currency-context'
 import { Card } from '@/components/ui/card'
 import { ErrorBanner } from '@/components/ui/error-banner'
 import { cn, toDate } from '@/lib/utils'
@@ -36,6 +37,8 @@ function EditHistorySheet({ item, onClose }: { item: HistoryItem; onClose: () =>
   const [outcome, setOutcome] = useState<'SKIPPED' | 'BOUGHT'>(item.status)
   const [title, setTitle] = useState(item.title)
   const [amount, setAmount] = useState(String(item.amountCents / 100))
+  const currency = useCurrency()
+  const currencySymbol = CURRENCIES.find(c => c.code === currency)?.symbol ?? currency
   const [fieldError, setFieldError] = useState<string | null>(null)
 
   function handleSave() {
@@ -105,7 +108,7 @@ function EditHistorySheet({ item, onClose }: { item: HistoryItem; onClose: () =>
               Amount
             </p>
             <div className="flex items-baseline justify-center gap-1">
-              <span className="text-2xl font-semibold text-muted-foreground tracking-tight">RM</span>
+              <span className="text-2xl font-semibold text-muted-foreground tracking-tight">{currencySymbol}</span>
               <input
                 type="number"
                 inputMode="decimal"
@@ -193,6 +196,7 @@ function EditHistorySheet({ item, onClose }: { item: HistoryItem; onClose: () =>
 export function HistoryCard({ item }: { item: HistoryItem }) {
   const [editing, setEditing] = useState(false)
   const isSkipped = item.status === 'SKIPPED'
+  const currency = useCurrency()
   const Icon = isSkipped ? Check : ShoppingBag
 
   return (
@@ -227,7 +231,7 @@ export function HistoryCard({ item }: { item: HistoryItem }) {
             )}
           >
             {isSkipped ? '+' : ''}
-            {fmtRM(item.amountCents, 0)}
+            {fmtCurrency(item.amountCents, currency, 0)}
           </span>
           <Pencil size={13} className="text-subtle-foreground" />
         </div>

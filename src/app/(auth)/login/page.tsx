@@ -54,7 +54,15 @@ export default function LoginPage() {
         </SubmitButton>
       </form>
 
-      <p className="mt-6 text-center text-sm text-muted-foreground">
+      <p className="mt-6 text-center text-xs text-subtle-foreground">
+        By signing in, you agree to our{' '}
+        <Link href="/privacy" prefetch className="underline underline-offset-2 hover:text-muted-foreground transition-colors">
+          Privacy Policy
+        </Link>
+        .
+      </p>
+
+      <p className="mt-4 text-center text-sm text-muted-foreground">
         New here?{' '}
         <Link href="/signup" prefetch className="font-semibold text-primary hover:underline">
           Create account
